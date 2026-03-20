@@ -12,16 +12,11 @@ RUN pip install --upgrade pip && \
     pip install --only-binary=Pillow Pillow==10.3.0 && \
     pip install --no-cache-dir -r requirements.txt
 
-# Copia tudo
 COPY app/ ./app/
 COPY static/ ./static/
-COPY assets/ ./assets/
-COPY data/ ./data/
 
-# Garante pastas
 RUN mkdir -p data/fichas data/backup data/relatorios assets/qrcodes
 
 EXPOSE 10000
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "10000"]
-
