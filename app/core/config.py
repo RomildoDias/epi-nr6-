@@ -1,0 +1,43 @@
+from pydantic_settings import BaseSettings
+from pathlib import Path
+
+
+class Settings(BaseSettings):
+    APP_NAME: str = "Controle EPI NR-6"
+    SECRET_KEY: str = "dev_key_TROQUE_EM_PRODUCAO_min_32_chars!!"
+    ALGORITHM:  str = "HS256"
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = 480
+
+    # SQLite por padrão (funciona no Render free tier sem configuração extra)
+    # Para PostgreSQL: postgresql://user:pass@host/db
+    DATABASE_URL: str = "sqlite:///./data/epi.db"
+
+    @property
+    def BASE_DIR(self) -> Path:
+        return Path(__file__).parent.parent.parent
+
+    @property
+    def DATA_DIR(self) -> Path:
+        d = self.BASE_DIR / "data"
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+
+    @property
+    def FICHAS_DIR(self) -> Path:
+        d = self.BASE_DIR / "data" / "fichas"
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+
+    @property
+    def QRCODES_DIR(self) -> Path:
+        d = self.BASE_DIR / "assets" / "qrcodes"
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+
+    class Config:
+        env_file = ".env"
+        env_file_encoding = "utf-8"
+        extra = "ignore"
+
+
+settings = Settings()
