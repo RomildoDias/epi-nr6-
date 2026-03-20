@@ -38,9 +38,10 @@ body{background:var(--bg);color:var(--text)}
 .logout-btn{display:flex;align-items:center;gap:8px;padding:8px 14px;cursor:pointer;border-radius:6px;font-size:11px;color:var(--sidebar-text);transition:background .12s}
 .logout-btn:hover{background:var(--sidebar-hover);color:#fff}
 .main{flex:1;display:flex;flex-direction:column;overflow:hidden}
-.topbar{background:var(--card);border-bottom:.5px solid var(--border);padding:12px 24px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
-.page-title{font-size:16px;font-weight:600;color:var(--text)}
-.page-sub{font-size:11px;color:var(--muted);margin-top:2px}
+.topbar{background:var(--card);border-bottom:.5px solid var(--border);padding:10px 24px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0;gap:12px}
+.topbar-left{display:flex;flex-direction:column}
+.page-title{font-size:15px;font-weight:600;color:var(--text)}
+.page-sub{font-size:11px;color:var(--muted);margin-top:1px}
 .content{flex:1;overflow-y:auto;padding:24px}
 .btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;border:none;transition:opacity .15s}
 .btn:hover{opacity:.88}
@@ -50,16 +51,29 @@ body{background:var(--bg);color:var(--text)}
 .btn-danger{background:var(--red);color:#fff}
 .btn-secondary{background:#f3f4f6;color:#374151;border:.5px solid var(--border)}
 .btn-sm{padding:5px 10px;font-size:10px}
+/* SELETOR DE ESTADO */
+.estado-selector{display:flex;align-items:center;gap:8px;background:#f8fafc;border:.5px solid var(--border);border-radius:8px;padding:6px 12px;cursor:pointer;position:relative;min-width:200px}
+.estado-selector:hover{border-color:var(--blue)}
+.estado-dot{width:8px;height:8px;border-radius:50%;background:var(--blue);flex-shrink:0}
+.estado-dot.all{background:var(--purple)}
+.estado-label{font-size:11px;font-weight:600;color:var(--text);flex:1}
+.estado-sub{font-size:9px;color:var(--muted)}
+.estado-arrow{font-size:10px;color:var(--muted)}
+.estado-dropdown{position:absolute;top:calc(100% + 6px);right:0;background:var(--card);border:.5px solid var(--border);border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.12);z-index:100;min-width:240px;overflow:hidden}
+.estado-opt{display:flex;align-items:center;gap:10px;padding:9px 14px;cursor:pointer;font-size:11px;color:var(--text);transition:background .1s}
+.estado-opt:hover{background:#f0f4ff}
+.estado-opt.sel{background:#eff6ff;color:var(--blue);font-weight:600}
+.estado-opt-uf{width:28px;height:20px;border-radius:3px;background:var(--blue);color:#fff;font-size:9px;font-weight:700;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.estado-opt-uf.all{background:var(--purple)}
+.estado-divider{height:.5px;background:var(--border);margin:4px 0}
+/* resto do CSS */
 .kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
 .kpi{background:var(--card);border:.5px solid var(--border);border-radius:8px;overflow:hidden}
-.kpi-bar{height:3px}
-.kpi-inner{padding:12px}
-.kpi-label{font-size:10px;color:var(--muted)}
-.kpi-value{font-size:26px;font-weight:700;margin-top:4px}
+.kpi-bar{height:3px}.kpi-inner{padding:12px}
+.kpi-label{font-size:10px;color:var(--muted)}.kpi-value{font-size:26px;font-weight:700;margin-top:4px}
 .row2{display:grid;grid-template-columns:2fr 3fr;gap:16px;margin-bottom:20px}
 .card{background:var(--card);border:.5px solid var(--border);border-radius:8px;overflow:hidden}
-.card-bar{height:3px}
-.card-body{padding:16px}
+.card-bar{height:3px}.card-body{padding:16px}
 .card-title{font-size:13px;font-weight:600;margin-bottom:4px}
 .card-sub{font-size:10px;color:var(--muted);margin-bottom:12px}
 .alert-item{font-size:11px;padding:6px 10px;border-radius:4px;margin-bottom:4px}
@@ -88,10 +102,8 @@ label{display:block;font-size:11px;color:var(--muted);margin-bottom:4px;margin-t
 .modal-body{padding:20px}
 .modal-footer{padding:12px 20px;border-top:.5px solid var(--border);display:flex;gap:8px;justify-content:flex-end}
 .err{color:var(--red);font-size:11px;margin-top:6px}
-
-/* LOGIN */
 .login-bg{min-height:100vh;background:var(--sidebar);display:flex;align-items:center;justify-content:center}
-.login-card{background:var(--card);border-radius:12px;width:400px;padding:0;overflow:hidden;box-shadow:0 24px 64px rgba(0,0,0,.4)}
+.login-card{background:var(--card);border-radius:12px;width:400px;overflow:hidden;box-shadow:0 24px 64px rgba(0,0,0,.4)}
 .login-top{background:var(--sidebar);padding:32px 28px 24px;text-align:center}
 .login-icon{font-size:40px;color:var(--blue)}
 .login-title{font-size:18px;font-weight:600;color:#fff;margin-top:8px}
@@ -104,12 +116,15 @@ label{display:block;font-size:11px;color:var(--muted);margin-bottom:4px;margin-t
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const {useState, useEffect, useCallback, createContext, useContext} = React;
+const {useState, useEffect, useCallback, useRef} = React;
 
-// ── API CLIENT ────────────────────────────────────────────────────────────
 const API = window.location.origin;
 let _token = localStorage.getItem("epi_token") || "";
 let _user  = JSON.parse(localStorage.getItem("epi_user") || "null");
+
+// tenant_filter_id = "" significa "todos os estados" (superadmin)
+// tenant_filter_id = "abc123" significa filtrar por aquele tenant
+let _tenantFilter = localStorage.getItem("epi_tenant_filter") || "";
 
 async function api(method, path, body=null) {
   const opts = {
@@ -118,7 +133,13 @@ async function api(method, path, body=null) {
                ...(_token ? {"Authorization":`Bearer ${_token}`} : {})},
     ...(body ? {body: JSON.stringify(body)} : {}),
   };
-  const r = await fetch(`${API}/api${path}`, opts);
+  // Injeta filtro de tenant como query param quando superadmin seleciona um estado
+  let url = `${API}/api${path}`;
+  if (_tenantFilter && _user?.perfil === "superadmin") {
+    const sep = url.includes("?") ? "&" : "?";
+    url += `${sep}_tenant=${_tenantFilter}`;
+  }
+  const r = await fetch(url, opts);
   if (r.status === 401) { logout(); return null; }
   if (!r.ok) {
     const err = await r.json().catch(()=>({detail:"Erro desconhecido"}));
@@ -131,16 +152,13 @@ async function api(method, path, body=null) {
 }
 
 function logout() {
-  _token = ""; _user = null;
+  _token = ""; _user = null; _tenantFilter = "";
   localStorage.removeItem("epi_token");
   localStorage.removeItem("epi_user");
+  localStorage.removeItem("epi_tenant_filter");
   window.location.reload();
 }
 
-// ── AUTH CONTEXT ─────────────────────────────────────────────────────────
-const AuthCtx = createContext(null);
-
-// ── STATUS BADGE ─────────────────────────────────────────────────────────
 function StatusBadge({status}) {
   const map = {
     OK:["badge-ok","✓ OK"],
@@ -157,7 +175,63 @@ function fmt_date(v) {
   try { return new Date(v).toLocaleDateString("pt-BR"); } catch{ return v; }
 }
 
-// ── LOGIN ─────────────────────────────────────────────────────────────────
+// ── SELETOR DE ESTADO (superadmin only) ──────────────────────────────────
+function EstadoSelector({tenants, value, onChange}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef(null);
+
+  useEffect(()=>{
+    function handle(e){ if(ref.current && !ref.current.contains(e.target)) setOpen(false); }
+    document.addEventListener("mousedown", handle);
+    return ()=>document.removeEventListener("mousedown", handle);
+  },[]);
+
+  const sel = tenants.find(t=>t.id===value);
+  const label = sel ? `${sel.estado_uf} — ${sel.nome}` : "Todos os estados";
+  const isAll = !value;
+
+  function pick(id) {
+    _tenantFilter = id;
+    localStorage.setItem("epi_tenant_filter", id);
+    onChange(id);
+    setOpen(false);
+  }
+
+  return (
+    <div ref={ref} style={{position:"relative"}}>
+      <div className="estado-selector" onClick={()=>setOpen(o=>!o)}>
+        <div className={`estado-dot${isAll?" all":""}`}/>
+        <div style={{flex:1}}>
+          <div className="estado-label">{label}</div>
+          <div className="estado-sub">{isAll ? "Visão consolidada" : "Filtrado por estado"}</div>
+        </div>
+        <span className="estado-arrow">{open?"▲":"▼"}</span>
+      </div>
+      {open && (
+        <div className="estado-dropdown">
+          <div className={`estado-opt${isAll?" sel":""}`} onClick={()=>pick("")}>
+            <div className="estado-opt-uf all">★</div>
+            <div>
+              <div style={{fontWeight:600}}>Todos os estados</div>
+              <div style={{fontSize:9,color:"var(--muted)"}}>Visão consolidada</div>
+            </div>
+          </div>
+          <div className="estado-divider"/>
+          {tenants.map(t=>(
+            <div key={t.id} className={`estado-opt${value===t.id?" sel":""}`} onClick={()=>pick(t.id)}>
+              <div className="estado-opt-uf">{t.estado_uf}</div>
+              <div>
+                <div>{t.nome}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── LOGIN ────────────────────────────────────────────────────────────────
 function Login({onLogin}) {
   const [login,setLogin]=useState("");
   const [senha,setSenha]=useState("");
@@ -206,15 +280,15 @@ function Login({onLogin}) {
   );
 }
 
-// ── DASHBOARD ─────────────────────────────────────────────────────────────
-function Dashboard() {
+// ── DASHBOARD ────────────────────────────────────────────────────────────
+function Dashboard({tenantFilter}) {
   const [kpis,setKpis]=useState(null);
   const [consumo,setConsumo]=useState([]);
 
   useEffect(()=>{
-    api("GET","/dashboard/kpis").then(setKpis);
-    api("GET","/dashboard/consumo-setor").then(setConsumo);
-  },[]);
+    api("GET","/dashboard/kpis").then(d=>d&&setKpis(d));
+    api("GET","/dashboard/consumo-setor").then(d=>d&&setConsumo(d||[]));
+  },[tenantFilter]);
 
   const kpiDefs = [
     {key:"total_itens",label:"Total em Estoque",color:"var(--blue)"},
@@ -238,39 +312,29 @@ function Dashboard() {
           </div>
         ))}
       </div>
-
       <div className="row2">
         <div className="card">
           <div className="card-bar" style={{background:"var(--red)"}}/>
           <div className="card-body">
             <div className="card-title">Alertas Ativos</div>
             <div className="card-sub">Estoque baixo e CA vencendo</div>
-            {kpis?.alertas?.length === 0 && (
-              <div className="alert-item alert-ok">✓ Nenhum alerta no momento</div>
-            )}
+            {kpis?.alertas?.length===0 && <div className="alert-item alert-ok">✓ Nenhum alerta</div>}
             {kpis?.alertas?.map((a,i)=>(
-              <div key={i} className={`alert-item ${a.includes("VENCIDO")?"alert-danger":"alert-warning"}`}>
-                {a}
-              </div>
+              <div key={i} className={`alert-item ${a.includes("VENCIDO")?"alert-danger":"alert-warning"}`}>{a}</div>
             ))}
           </div>
         </div>
-
         <div className="card">
           <div className="card-bar" style={{background:"var(--blue)"}}/>
           <div className="card-body">
             <div className="card-title">Consumo por Setor (30 dias)</div>
-            <div className="card-sub">Unidades entregues por setor</div>
-            {consumo.length === 0 ? (
-              <p style={{fontSize:12,color:"var(--muted)"}}>Sem dados no período.</p>
-            ) : (
-              <table>
-                <thead><tr><th>Setor</th><th>Qtd. Entregue</th></tr></thead>
-                <tbody>{consumo.map((r,i)=>(
-                  <tr key={i}><td>{r.setor}</td><td>{r.quantidade}</td></tr>
-                ))}</tbody>
-              </table>
-            )}
+            <div className="card-sub">Unidades entregues</div>
+            {consumo.length===0
+              ? <p style={{fontSize:12,color:"var(--muted)"}}>Sem dados no período.</p>
+              : <table><thead><tr><th>Setor</th><th>Qtd. Entregue</th></tr></thead>
+                <tbody>{consumo.map((r,i)=><tr key={i}><td>{r.setor}</td><td>{r.quantidade}</td></tr>)}</tbody>
+                </table>
+            }
           </div>
         </div>
       </div>
@@ -279,24 +343,20 @@ function Dashboard() {
 }
 
 // ── EPIs ──────────────────────────────────────────────────────────────────
-function EPIsPage() {
+function EPIsPage({tenantFilter}) {
   const [epis,setEpis]=useState([]);
   const [busca,setBusca]=useState("");
-  const [modal,setModal]=useState(null); // null | "novo" | row
+  const [modal,setModal]=useState(null);
   const [form,setForm]=useState({});
   const [err,setErr]=useState("");
+  const TIPOS=["Impacto","Químico","Óptico","Queda","Auditiva","Respiratória","Térmica","Soldagem","Mãos","Pés","Cabeça","Outros"];
 
   const load = useCallback(async()=>{
     const data = await api("GET",`/epis?busca=${busca}`);
     if(data) setEpis(data);
-  },[busca]);
+  },[busca,tenantFilter]);
 
   useEffect(()=>{ load(); },[load]);
-
-  const TIPOS=["Impacto","Químico","Óptico","Queda","Auditiva","Respiratória","Térmica","Soldagem","Mãos","Pés","Cabeça","Outros"];
-
-  function openNovo(){ setForm({vida_util_dias:365,estoque_minimo:5,quantidade:0,tipo_protecao:TIPOS[0]}); setErr(""); setModal("novo"); }
-  function openEdit(row){ setForm({...row, validade_ca: row.validade_ca?.slice(0,10)}); setErr(""); setModal(row); }
 
   async function salvar() {
     setErr("");
@@ -317,15 +377,11 @@ function EPIsPage() {
       <div style={{display:"flex",gap:8,marginBottom:16}}>
         <input style={{maxWidth:300}} placeholder="Buscar por nome, CA ou fabricante..."
           value={busca} onChange={e=>setBusca(e.target.value)}/>
-        <button className="btn btn-success" onClick={openNovo}>➕ Novo EPI</button>
+        <button className="btn btn-success" onClick={()=>{setForm({vida_util_dias:365,estoque_minimo:5,quantidade:0,tipo_protecao:TIPOS[0]});setErr("");setModal("novo");}}>➕ Novo EPI</button>
       </div>
-
       <div className="card">
         <table>
-          <thead><tr>
-            <th>Nome</th><th>CA</th><th>Fabricante</th><th>Tipo</th>
-            <th>Qtd</th><th>Mín</th><th>Validade CA</th><th>Status</th><th></th>
-          </tr></thead>
+          <thead><tr><th>Nome</th><th>CA</th><th>Fabricante</th><th>Tipo</th><th>Qtd</th><th>Mín</th><th>Validade CA</th><th>Status</th><th></th></tr></thead>
           <tbody>{epis.map(e=>(
             <tr key={e.id}>
               <td>{e.nome}</td><td>{e.ca}</td><td>{e.fabricante}</td>
@@ -333,21 +389,18 @@ function EPIsPage() {
               <td>{fmt_date(e.validade_ca)}</td>
               <td><StatusBadge status={e.status}/></td>
               <td style={{display:"flex",gap:4}}>
-                <button className="btn btn-secondary btn-sm" onClick={()=>openEdit(e)}>✎</button>
+                <button className="btn btn-secondary btn-sm" onClick={()=>{setForm({...e,validade_ca:e.validade_ca?.slice(0,10)});setErr("");setModal(e);}}>✎</button>
                 <button className="btn btn-danger btn-sm" onClick={()=>inativar(e.id)}>✕</button>
               </td>
             </tr>
           ))}</tbody>
         </table>
       </div>
-
       {modal && (
         <div className="modal-bg" onClick={e=>e.target===e.currentTarget&&setModal(null)}>
           <div className="modal">
-            <div className="modal-header">
-              <h3>{modal==="novo"?"Novo EPI":"Editar EPI"}</h3>
-              <button className="modal-close" onClick={()=>setModal(null)}>✕</button>
-            </div>
+            <div className="modal-header"><h3>{modal==="novo"?"Novo EPI":"Editar EPI"}</h3>
+              <button className="modal-close" onClick={()=>setModal(null)}>✕</button></div>
             <div className="modal-body">
               <div className="form-row">
                 <div><label>Nome *</label><input value={form.nome||""} onChange={e=>setForm({...form,nome:e.target.value})}/></div>
@@ -367,7 +420,7 @@ function EPIsPage() {
               </div>
               <div className="form-row">
                 <div><label>Estoque Mínimo *</label><input type="number" value={form.estoque_minimo||5} onChange={e=>setForm({...form,estoque_minimo:+e.target.value})}/></div>
-                <div><label>Quantidade Inicial *</label><input type="number" value={form.quantidade||0} onChange={e=>setForm({...form,quantidade:+e.target.value})}/></div>
+                <div><label>Quantidade *</label><input type="number" value={form.quantidade||0} onChange={e=>setForm({...form,quantidade:+e.target.value})}/></div>
               </div>
               {err && <div className="err">⚠ {err}</div>}
             </div>
@@ -383,7 +436,7 @@ function EPIsPage() {
 }
 
 // ── ENTREGAS ──────────────────────────────────────────────────────────────
-function EntregasPage() {
+function EntregasPage({tenantFilter}) {
   const [entregas,setEntregas]=useState([]);
   const [epis,setEpis]=useState([]);
   const [colabs,setColabs]=useState([]);
@@ -396,11 +449,10 @@ function EntregasPage() {
     api("GET","/entregas?limit=50").then(d=>d&&setEntregas(d));
     api("GET","/epis").then(d=>d&&setEpis(d));
     api("GET","/colaboradores").then(d=>d&&setColabs(d));
-  },[]);
+  },[tenantFilter]);
 
   function onEpiChange(id) {
-    const e = epis.find(x=>x.id===id);
-    setEpiSel(e||null);
+    setEpiSel(epis.find(x=>x.id===id)||null);
     setForm(f=>({...f,epi_id:id}));
   }
 
@@ -429,30 +481,24 @@ function EntregasPage() {
           ➕ Registrar Entrega
         </button>
       </div>
-
       <div className="card">
         <table>
           <thead><tr><th>Data</th><th>Colaborador</th><th>EPI</th><th>Qtd</th><th>Val. Prevista</th><th></th></tr></thead>
           <tbody>{entregas.map(e=>(
             <tr key={e.id}>
-              <td>{fmt_date(e.data)}</td>
-              <td>{e.colaborador_nome||"—"}</td>
-              <td>{e.epi_nome||"—"}</td>
-              <td>{e.quantidade}</td>
+              <td>{fmt_date(e.data)}</td><td>{e.colaborador_nome||"—"}</td>
+              <td>{e.epi_nome||"—"}</td><td>{e.quantidade}</td>
               <td>{fmt_date(e.validade_prevista)}</td>
               <td><button className="btn btn-secondary btn-sm" onClick={()=>downloadFicha(e.id)}>📄 Ficha</button></td>
             </tr>
           ))}</tbody>
         </table>
       </div>
-
       {modal && (
         <div className="modal-bg" onClick={e=>e.target===e.currentTarget&&setModal(false)}>
           <div className="modal">
-            <div className="modal-header">
-              <h3>Registrar Entrega de EPI</h3>
-              <button className="modal-close" onClick={()=>setModal(false)}>✕</button>
-            </div>
+            <div className="modal-header"><h3>Registrar Entrega de EPI</h3>
+              <button className="modal-close" onClick={()=>setModal(false)}>✕</button></div>
             <div className="modal-body">
               <label>Colaborador *</label>
               <select value={form.colaborador_id||""} onChange={e=>setForm({...form,colaborador_id:e.target.value})}>
@@ -465,10 +511,8 @@ function EntregasPage() {
                 {epis.map(e=><option key={e.id} value={e.id}>{e.nome} · CA {e.ca} · Saldo: {e.quantidade}</option>)}
               </select>
               {epiSel && (
-                <div style={{background:"#f8fafc",border:".5px solid var(--border)",borderRadius:6,padding:"10px 12px",marginTop:8,fontSize:11}}>
-                  <span style={{color:"var(--muted)"}}>CA: </span>{epiSel.ca} &nbsp;
-                  <span style={{color:"var(--muted)"}}>Validade: </span>{fmt_date(epiSel.validade_ca)} &nbsp;
-                  <StatusBadge status={epiSel.status}/>
+                <div style={{background:"#f8fafc",border:".5px solid var(--border)",borderRadius:6,padding:"8px 12px",marginTop:8,fontSize:11}}>
+                  CA: {epiSel.ca} &nbsp;·&nbsp; Validade: {fmt_date(epiSel.validade_ca)} &nbsp;·&nbsp; <StatusBadge status={epiSel.status}/>
                 </div>
               )}
               <div className="form-row">
@@ -491,21 +535,19 @@ function EntregasPage() {
 }
 
 // ── ESTOQUE ───────────────────────────────────────────────────────────────
-function EstoquePage() {
+function EstoquePage({tenantFilter}) {
   const [epis,setEpis]=useState([]);
-  const [modal,setModal]=useState(null); // {tipo:"entrada"|"ajuste", epi}
+  const [modal,setModal]=useState(null);
   const [form,setForm]=useState({});
   const [err,setErr]=useState("");
 
   const load = ()=> api("GET","/epis").then(d=>d&&setEpis(d));
-  useEffect(()=>{ load(); },[]);
+  useEffect(()=>{ load(); },[tenantFilter]);
 
   async function registrar() {
     setErr("");
     try {
-      const path = modal.tipo==="entrada"
-        ? `/estoque/${modal.epi.id}/entrada`
-        : `/estoque/${modal.epi.id}/ajuste`;
+      const path = modal.tipo==="entrada" ? `/estoque/${modal.epi.id}/entrada` : `/estoque/${modal.epi.id}/ajuste`;
       await api("POST", path, form);
       setModal(null); load();
     } catch(ex){ setErr(ex.message); }
@@ -530,7 +572,6 @@ function EstoquePage() {
           ))}</tbody>
         </table>
       </div>
-
       {modal && (
         <div className="modal-bg" onClick={e=>e.target===e.currentTarget&&setModal(null)}>
           <div className="modal">
@@ -574,23 +615,21 @@ function RelatoriosPage() {
     a.click(); URL.revokeObjectURL(url);
   }
   const btns = [
-    {label:"Estoque Atual",       sub:"Todos os EPIs com status",         path:"/relatorios/estoque",    file:"estoque.pdf",    color:"var(--blue)"},
-    {label:"CA Vencido / Alerta", sub:"EPIs com certificado em atenção",  path:"/relatorios/ca-alertas", file:"ca_alertas.pdf", color:"var(--red)"},
+    {label:"Estoque Atual",color:"var(--blue)",path:"/relatorios/estoque",file:"estoque.pdf",sub:"Todos os EPIs com status"},
+    {label:"CA Vencido / Alerta",color:"var(--red)",path:"/relatorios/ca-alertas",file:"ca_alertas.pdf",sub:"Certificados em atenção"},
   ];
   return (
-    <div>
-      <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:16}}>
-        {btns.map(b=>(
-          <div key={b.path} className="card" style={{cursor:"pointer"}} onClick={()=>baixar(b.path,b.file)}>
-            <div className="card-bar" style={{background:b.color}}/>
-            <div className="card-body">
-              <div className="card-title">{b.label}</div>
-              <div className="card-sub">{b.sub}</div>
-              <button className="btn btn-primary btn-sm">📄 Gerar PDF</button>
-            </div>
+    <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",gap:16}}>
+      {btns.map(b=>(
+        <div key={b.path} className="card" style={{cursor:"pointer"}} onClick={()=>baixar(b.path,b.file)}>
+          <div className="card-bar" style={{background:b.color}}/>
+          <div className="card-body">
+            <div className="card-title">{b.label}</div>
+            <div className="card-sub">{b.sub}</div>
+            <button className="btn btn-primary btn-sm">📄 Gerar PDF</button>
           </div>
-        ))}
-      </div>
+        </div>
+      ))}
     </div>
   );
 }
@@ -703,8 +742,7 @@ function UsuariosTab() {
       if(modal==="novo") await api("POST","/usuarios",form);
       else await api("PUT",`/usuarios/${modal.id}`,{
         nome:form.nome, perfil:form.perfil,
-        tenant_id:form.tenant_id||null,
-        ativo:form.ativo,
+        tenant_id:form.tenant_id||null, ativo:form.ativo,
         ...(form.nova_senha?{nova_senha:form.nova_senha}:{})
       });
       setModal(null); load();
@@ -768,36 +806,26 @@ function UsuariosTab() {
   );
 }
 
-// ── CONFIGURAÇÕES ─────────────────────────────────────────────────────────
+// ── CONFIG ────────────────────────────────────────────────────────────────
 function ConfigPage() {
   const [cfg,setCfg]=useState({});
   const [ok,setOk]=useState("");
-
   useEffect(()=>{ api("GET","/config").then(d=>d&&setCfg(d)); },[]);
-
   async function salvar() {
-    try { await api("PUT","/config",cfg); setOk("✓ Salvo com sucesso!"); setTimeout(()=>setOk(""),3000); }
+    try { await api("PUT","/config",cfg); setOk("✓ Salvo!"); setTimeout(()=>setOk(""),3000); }
     catch(ex){ setOk("Erro: "+ex.message); }
   }
-
   return (
     <div className="card" style={{maxWidth:520}}>
       <div className="card-bar" style={{background:"var(--blue)"}}/>
       <div className="card-body">
         <div className="card-title">Configurações</div>
-        <div className="card-sub">Parâmetros da empresa e alertas</div>
-        <label>Nome da empresa</label>
-        <input value={cfg.empresa_nome||""} onChange={e=>setCfg({...cfg,empresa_nome:e.target.value})}/>
-        <label>CNPJ</label>
-        <input value={cfg.empresa_cnpj||""} onChange={e=>setCfg({...cfg,empresa_cnpj:e.target.value})}/>
-        <label>Endereço</label>
-        <input value={cfg.empresa_endereco||""} onChange={e=>setCfg({...cfg,empresa_endereco:e.target.value})}/>
-        <label>Dias de alerta para CA a vencer</label>
-        <input type="number" value={cfg.dias_alerta_ca||30} onChange={e=>setCfg({...cfg,dias_alerta_ca:e.target.value})}/>
+        <label>Nome da empresa</label><input value={cfg.empresa_nome||""} onChange={e=>setCfg({...cfg,empresa_nome:e.target.value})}/>
+        <label>CNPJ</label><input value={cfg.empresa_cnpj||""} onChange={e=>setCfg({...cfg,empresa_cnpj:e.target.value})}/>
+        <label>Endereço</label><input value={cfg.empresa_endereco||""} onChange={e=>setCfg({...cfg,empresa_endereco:e.target.value})}/>
+        <label>Dias de alerta CA a vencer</label><input type="number" value={cfg.dias_alerta_ca||30} onChange={e=>setCfg({...cfg,dias_alerta_ca:e.target.value})}/>
         {ok && <div style={{marginTop:8,fontSize:11,color:ok.startsWith("Erro")?"var(--red)":"var(--green)"}}>{ok}</div>}
-        <div style={{marginTop:16}}>
-          <button className="btn btn-success" onClick={salvar}>✔ Salvar Configurações</button>
-        </div>
+        <div style={{marginTop:16}}><button className="btn btn-success" onClick={salvar}>✔ Salvar</button></div>
       </div>
     </div>
   );
@@ -813,33 +841,41 @@ const PAGES = {
   admin:      {label:"◆  Administração", perm:"gerenciar_usuarios",  comp:AdminPage},
   config:     {label:"◌  Configurações", perm:"ver_config",          comp:ConfigPage},
 };
-
 const PERMS = {
-  superadmin: new Set(Object.values(PAGES).map(p=>p.perm)),
-  admin:      new Set(["ver_dashboard","cadastrar_epi","registrar_entrega","entrada_estoque","ver_relatorios","gerenciar_usuarios","ver_config"]),
-  operador:   new Set(["ver_dashboard","cadastrar_epi","registrar_entrega","entrada_estoque","ver_relatorios"]),
-  visualizador:new Set(["ver_dashboard","ver_relatorios"]),
+  superadmin:   new Set(Object.values(PAGES).map(p=>p.perm)),
+  admin:        new Set(["ver_dashboard","cadastrar_epi","registrar_entrega","entrada_estoque","ver_relatorios","gerenciar_usuarios","ver_config"]),
+  operador:     new Set(["ver_dashboard","cadastrar_epi","registrar_entrega","entrada_estoque","ver_relatorios"]),
+  visualizador: new Set(["ver_dashboard","ver_relatorios"]),
 };
-
 const PAGE_TITLES = {
-  dashboard:"Dashboard", epis:"Cadastro de EPIs", entregas:"Entregas",
-  estoque:"Estoque", relatorios:"Relatórios", admin:"Administração", config:"Configurações",
-};
-const PAGE_SUBS = {
-  dashboard:"Visão geral do sistema",
-  epis:"Gerencie equipamentos de proteção individual",
-  entregas:"Registre entregas e gere fichas NR-6",
-  estoque:"Entradas, ajustes e movimentações",
-  relatorios:"Gere relatórios em PDF",
-  admin:"Tenants (estados) e usuários",
-  config:"Parâmetros do sistema",
+  dashboard:"Dashboard",epis:"Cadastro de EPIs",entregas:"Entregas",
+  estoque:"Estoque",relatorios:"Relatórios",admin:"Administração",config:"Configurações",
 };
 
 function AppShell({user}) {
-  const [page,setPage]=useState("dashboard");
-  const perms = PERMS[user.perfil] || new Set();
+  const [page, setPage]           = useState("dashboard");
+  const [tenantFilter, setTenantFilter] = useState(_tenantFilter);
+  const [tenants, setTenants]     = useState([]);
+  const isSuperAdmin = user.perfil === "superadmin";
+  const perms   = PERMS[user.perfil] || new Set();
   const visivel = Object.entries(PAGES).filter(([,p])=>perms.has(p.perm));
   const PageComp = PAGES[page]?.comp || Dashboard;
+
+  // Carrega lista de estados para o seletor (só superadmin)
+  useEffect(()=>{
+    if(isSuperAdmin) api("GET","/tenants").then(d=>d&&setTenants(d));
+  },[]);
+
+  function onTenantChange(id) {
+    _tenantFilter = id;
+    localStorage.setItem("epi_tenant_filter", id);
+    setTenantFilter(id);
+  }
+
+  const selTenant = tenants.find(t=>t.id===tenantFilter);
+  const estadoLabel = selTenant
+    ? `${selTenant.estado_uf} — ${selTenant.nome}`
+    : (user.tenant_nome || "Todos os estados");
 
   return (
     <div className="app">
@@ -847,9 +883,8 @@ function AppShell({user}) {
         <div className="logo">
           <span className="logo-icon">⬡</span>
           <span className="logo-title">EPI NR-6</span>
-          <span className="logo-sub">{user.tenant_nome || "Matriz / Todos os Estados"}</span>
+          <span className="logo-sub">{estadoLabel}</span>
         </div>
-
         <div className="user-pill">
           <div className="avatar">{user.nome[0].toUpperCase()}</div>
           <div>
@@ -857,14 +892,12 @@ function AppShell({user}) {
             <div className="user-role">{user.perfil.charAt(0).toUpperCase()+user.perfil.slice(1)}</div>
           </div>
         </div>
-
         <div className="nav-section">MENU</div>
         {visivel.map(([key,p])=>(
           <div key={key} className={`nav-item${page===key?" active":""}`} onClick={()=>setPage(key)}>
             <span className="nav-label">{p.label}</span>
           </div>
         ))}
-
         <div className="sidebar-footer">
           <div className="logout-btn" onClick={logout}>⇠ &nbsp; Sair</div>
         </div>
@@ -872,13 +905,21 @@ function AppShell({user}) {
 
       <div className="main">
         <div className="topbar">
-          <div>
+          <div className="topbar-left">
             <div className="page-title">{PAGE_TITLES[page]}</div>
-            <div className="page-sub">{PAGE_SUBS[page]}</div>
+            <div className="page-sub">{estadoLabel}</div>
           </div>
+          {/* Seletor de estado — só para superadmin */}
+          {isSuperAdmin && tenants.length > 0 && (
+            <EstadoSelector
+              tenants={tenants}
+              value={tenantFilter}
+              onChange={onTenantChange}
+            />
+          )}
         </div>
         <div className="content">
-          <PageComp/>
+          <PageComp tenantFilter={tenantFilter}/>
         </div>
       </div>
     </div>
