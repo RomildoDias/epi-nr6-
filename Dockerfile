@@ -8,15 +8,20 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY requirements.txt .
 
-# Instala Pillow com wheel pré-compilada (não compila do fonte)
 RUN pip install --upgrade pip && \
     pip install --only-binary=Pillow Pillow==10.3.0 && \
     pip install --no-cache-dir -r requirements.txt
 
-COPY . .
+# Copia tudo
+COPY app/ ./app/
+COPY static/ ./static/
+COPY assets/ ./assets/
+COPY data/ ./data/
 
-RUN mkdir -p data/fichas data/backup data/relatorios assets/qrcodes static
+# Garante pastas
+RUN mkdir -p data/fichas data/backup data/relatorios assets/qrcodes
 
 EXPOSE 10000
 
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "10000"]
+
