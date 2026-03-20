@@ -209,6 +209,25 @@ def create_colaborador(body: schemas.ColaboradorCreate,
     db.add(c); db.commit(); db.refresh(c); return c
 
 
+@router.put("/colaboradores/{cid}", response_model=schemas.ColaboradorOut)
+def update_colaborador(cid: str, body: schemas.ColaboradorCreate,
+                       db: Session = Depends(get_db),
+                       current_user=Depends(require_permission("cadastrar_epi"))):
+    c = db.query(models_db.Colaborador).filter(models_db.Colaborador.id == cid).first()
+    if not c: raise HTTPException(404, "Colaborador nao encontrado")
+    c.nome = body.nome; c.matricula = body.matricula
+    c.setor = body.setor; c.funcao = body.funcao
+    db.commit(); db.refresh(c); return c
+
+
+@router.delete("/colaboradores/{cid}", status_code=204)
+def inativar_colaborador(cid: str, db: Session = Depends(get_db),
+                          current_user=Depends(require_permission("cadastrar_epi"))):
+    c = db.query(models_db.Colaborador).filter(models_db.Colaborador.id == cid).first()
+    if not c: raise HTTPException(404)
+    c.ativo = False; db.commit()
+
+
 @router.get("/setores")
 def list_setores(db: Session = Depends(get_db),
                  current_user=Depends(require_permission("ver_dashboard"))):
