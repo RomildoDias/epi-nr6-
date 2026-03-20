@@ -605,6 +605,143 @@ function EstoquePage({tenantFilter}) {
   );
 }
 
+
+// ── COLABORADORES ─────────────────────────────────────────────────────────
+function ColaboradoresPage({tenantFilter}) {
+  const [colabs, setColabs]   = useState([]);
+  const [setores, setSetores] = useState([]);
+  const [modal, setModal]     = useState(null);
+  const [form, setForm]       = useState({});
+  const [err, setErr]         = useState("");
+  const [novoSetor, setNovoSetor] = useState("");
+
+  const load = ()=>{
+    api("GET","/colaboradores").then(d=>d&&setColabs(d));
+    api("GET","/setores").then(d=>d&&setSetores(d||[]));
+  };
+  useEffect(()=>{ load(); },[tenantFilter]);
+
+  async function salvar() {
+    setErr("");
+    if(!form.nome?.trim())      { setErr("Nome obrigatório."); return; }
+    if(!form.matricula?.trim()) { setErr("Matrícula obrigatória."); return; }
+    if(!form.setor?.trim())     { setErr("Setor obrigatório."); return; }
+    if(!form.funcao?.trim())    { setErr("Função obrigatória."); return; }
+    try {
+      if(modal==="novo") await api("POST","/colaboradores",form);
+      else await api("PUT",`/colaboradores/${modal.id}`,form);
+      setModal(null); load();
+    } catch(ex){ setErr(ex.message); }
+  }
+
+  async function inativar(id, nome) {
+    if(!confirm(`Inativar colaborador '${nome}'?`)) return;
+    await api("DELETE",`/colaboradores/${id}`); load();
+  }
+
+  async function addSetor() {
+    const n = novoSetor.trim();
+    if(!n) return;
+    await api("POST",`/setores?nome=${encodeURIComponent(n)}`);
+    setNovoSetor("");
+    api("GET","/setores").then(d=>d&&setSetores(d||[]));
+  }
+
+  return (
+    <div>
+      <div style={{display:"flex",gap:8,marginBottom:16,alignItems:"center"}}>
+        <span style={{fontSize:11,color:"var(--muted)",flex:1}}>
+          {colabs.length} colaborador(es) cadastrado(s)
+        </span>
+        <button className="btn btn-success"
+          onClick={()=>{setForm({});setErr("");setModal("novo");}}>
+          ➕ Novo Colaborador
+        </button>
+      </div>
+      <div className="card">
+        <table>
+          <thead><tr>
+            <th>Nome</th><th>Matrícula</th><th>Setor</th><th>Função</th><th>Status</th><th></th>
+          </tr></thead>
+          <tbody>{colabs.map(c=>(
+            <tr key={c.id}>
+              <td>{c.nome}</td>
+              <td>{c.matricula}</td>
+              <td>{c.setor}</td>
+              <td>{c.funcao}</td>
+              <td><span className={`badge ${c.ativo?"badge-ok":"badge-danger"}`}>
+                {c.ativo?"✓ Ativo":"✕ Inativo"}
+              </span></td>
+              <td style={{display:"flex",gap:4}}>
+                <button className="btn btn-secondary btn-sm"
+                  onClick={()=>{setForm({...c});setErr("");setModal(c);}}>✎</button>
+                <button className="btn btn-danger btn-sm"
+                  onClick={()=>inativar(c.id,c.nome)}>✕</button>
+              </td>
+            </tr>
+          ))}</tbody>
+        </table>
+      </div>
+
+      {modal && (
+        <div className="modal-bg" onClick={e=>e.target===e.currentTarget&&setModal(null)}>
+          <div className="modal">
+            <div className="modal-header">
+              <h3>{modal==="novo"?"Novo Colaborador":"Editar Colaborador"}</h3>
+              <button className="modal-close" onClick={()=>setModal(null)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <div className="form-row">
+                <div>
+                  <label>Nome *</label>
+                  <input value={form.nome||""}
+                    onChange={e=>setForm({...form,nome:e.target.value})}
+                    placeholder="Nome completo"/>
+                </div>
+                <div>
+                  <label>Matrícula *</label>
+                  <input value={form.matricula||""}
+                    onChange={e=>setForm({...form,matricula:e.target.value})}
+                    placeholder="Ex: 001"/>
+                </div>
+              </div>
+              <div className="form-row">
+                <div>
+                  <label>Setor *</label>
+                  <select value={form.setor||""}
+                    onChange={e=>setForm({...form,setor:e.target.value})}>
+                    <option value="">Selecione ou crie abaixo...</option>
+                    {setores.map(s=><option key={s} value={s}>{s}</option>)}
+                  </select>
+                  <div style={{display:"flex",gap:6,marginTop:6}}>
+                    <input value={novoSetor}
+                      onChange={e=>setNovoSetor(e.target.value)}
+                      placeholder="Criar novo setor..."
+                      style={{fontSize:11,padding:"5px 8px"}}
+                      onKeyDown={e=>e.key==="Enter"&&addSetor()}/>
+                    <button className="btn btn-secondary btn-sm" onClick={addSetor}>+ Criar</button>
+                  </div>
+                </div>
+                <div>
+                  <label>Função *</label>
+                  <input value={form.funcao||""}
+                    onChange={e=>setForm({...form,funcao:e.target.value})}
+                    placeholder="Ex: Operador, Técnico"/>
+                </div>
+              </div>
+              {err && <div className="err">⚠ {err}</div>}
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={()=>setModal(null)}>Cancelar</button>
+              <button className="btn btn-success" onClick={salvar}>✔ Salvar</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ── RELATÓRIOS ────────────────────────────────────────────────────────────
 function RelatoriosPage() {
   async function baixar(path, nome) {
@@ -833,13 +970,14 @@ function ConfigPage() {
 
 // ── APP SHELL ─────────────────────────────────────────────────────────────
 const PAGES = {
-  dashboard:  {label:"◉  Dashboard",     perm:"ver_dashboard",      comp:Dashboard},
-  epis:       {label:"◈  EPIs",          perm:"cadastrar_epi",       comp:EPIsPage},
-  entregas:   {label:"◎  Entregas",      perm:"registrar_entrega",   comp:EntregasPage},
-  estoque:    {label:"▣  Estoque",       perm:"entrada_estoque",     comp:EstoquePage},
-  relatorios: {label:"◫  Relatórios",    perm:"ver_relatorios",      comp:RelatoriosPage},
-  admin:      {label:"◆  Administração", perm:"gerenciar_usuarios",  comp:AdminPage},
-  config:     {label:"◌  Configurações", perm:"ver_config",          comp:ConfigPage},
+  dashboard:      {label:"◉  Dashboard",       perm:"ver_dashboard",      comp:Dashboard},
+  epis:           {label:"◈  EPIs",            perm:"cadastrar_epi",       comp:EPIsPage},
+  colaboradores:  {label:"◎  Colaboradores",   perm:"cadastrar_epi",       comp:ColaboradoresPage},
+  entregas:       {label:"◑  Entregas",        perm:"registrar_entrega",   comp:EntregasPage},
+  estoque:        {label:"▣  Estoque",         perm:"entrada_estoque",     comp:EstoquePage},
+  relatorios:     {label:"◫  Relatórios",      perm:"ver_relatorios",      comp:RelatoriosPage},
+  admin:          {label:"◆  Administração",   perm:"gerenciar_usuarios",  comp:AdminPage},
+  config:         {label:"◌  Configurações",   perm:"ver_config",          comp:ConfigPage},
 };
 const PERMS = {
   superadmin:   new Set(Object.values(PAGES).map(p=>p.perm)),
@@ -848,8 +986,9 @@ const PERMS = {
   visualizador: new Set(["ver_dashboard","ver_relatorios"]),
 };
 const PAGE_TITLES = {
-  dashboard:"Dashboard",epis:"Cadastro de EPIs",entregas:"Entregas",
-  estoque:"Estoque",relatorios:"Relatórios",admin:"Administração",config:"Configurações",
+  dashboard:"Dashboard",epis:"Cadastro de EPIs",colaboradores:"Colaboradores",
+  entregas:"Entregas",estoque:"Estoque",relatorios:"Relatórios",
+  admin:"Administração",config:"Configurações",
 };
 
 function AppShell({user}) {
