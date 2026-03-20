@@ -28,7 +28,3 @@ def health(db: Session = Depends(get_db)):
     except Exception as e:
         return {"status": "erro", "detalhe": str(e)}
 ```
-
-Depois de fazer o commit e o Render redeploy, acesse no navegador:
-```
-https://SEU-SERVICO.onrender.com/api/health
