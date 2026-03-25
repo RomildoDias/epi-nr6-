@@ -1,12 +1,10 @@
-# backend/app/api/routes.py
-"""
-Todos os endpoints da API em um único arquivo para simplicidade.
-"""
+# app/api/routes.py
 import uuid
+import time
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Optional, List
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
@@ -22,9 +20,26 @@ from app.services import rules
 router = APIRouter()
 
 
-# ════════════════════════════════════════════════════════════════════════════
-# AUTH
-# ════════════════════════════════════════════════════════════════════════════
+# ── HEALTH ────────────────────────────────────────────────────────────────
+@router.get("/health")
+def health(db: Session = Depends(get_db)):
+    """Diagnóstico: verifica banco e cria admin emergencial se vazio."""
+    try:
+        total = db.query(models_db.Usuario).count()
+        if total == 0:
+            db.add(models_db.Usuario(
+                id=str(uuid.uuid4()), nome="Administrador", login="admin",
+                senha_hash=hash_password("admin123"),
+                perfil="superadmin", tenant_id=None, ativo=True,
+            ))
+            db.commit()
+            return {"status": "ok", "usuarios": 1, "aviso": "admin criado — login: admin / admin123"}
+        return {"status": "ok", "usuarios": total}
+    except Exception as e:
+        return {"status": "erro", "detalhe": str(e)}
+
+
+# ── AUTH ──────────────────────────────────────────────────────────────────
 @router.post("/auth/login", response_model=schemas.TokenResponse)
 def login(body: schemas.LoginRequest, db: Session = Depends(get_db)):
     user = db.query(models_db.Usuario).filter(
@@ -33,6 +48,10 @@ def login(body: schemas.LoginRequest, db: Session = Depends(get_db)):
     ).first()
     if not user or not verify_password(body.senha, user.senha_hash):
         raise HTTPException(status_code=401, detail="Usuário ou senha incorretos")
+
+    # Registra último acesso
+    user.ultimo_acesso = datetime.utcnow()
+    db.commit()
 
     token = create_access_token({"sub": user.id})
     tenant_nome = ""
@@ -50,13 +69,29 @@ def login(body: schemas.LoginRequest, db: Session = Depends(get_db)):
 
 @router.get("/auth/me")
 def me(current_user=Depends(get_current_user)):
-    return {"id": current_user.id, "nome": current_user.nome,
-            "perfil": current_user.perfil, "tenant_id": current_user.tenant_id}
+    return {
+        "id":        current_user.id,
+        "nome":      current_user.nome,
+        "perfil":    current_user.perfil,
+        "tenant_id": current_user.tenant_id,
+    }
 
 
-# ════════════════════════════════════════════════════════════════════════════
-# DASHBOARD
-# ════════════════════════════════════════════════════════════════════════════
+@router.post("/auth/trocar-senha")
+def trocar_senha(body: schemas.TrocarSenhaRequest,
+                 db: Session = Depends(get_db),
+                 current_user=Depends(get_current_user)):
+    """Usuário troca a própria senha informando a senha atual."""
+    if not verify_password(body.senha_atual, current_user.senha_hash):
+        raise HTTPException(400, "Senha atual incorreta")
+    if len(body.nova_senha) < 6:
+        raise HTTPException(400, "Nova senha deve ter no mínimo 6 caracteres")
+    current_user.senha_hash = hash_password(body.nova_senha)
+    db.commit()
+    return {"ok": True, "mensagem": "Senha alterada com sucesso"}
+
+
+# ── DASHBOARD ─────────────────────────────────────────────────────────────
 @router.get("/dashboard/kpis", response_model=schemas.DashboardKPIs)
 def dashboard_kpis(db: Session = Depends(get_db),
                    current_user=Depends(require_permission("ver_dashboard"))):
@@ -69,19 +104,24 @@ def consumo_setor(dias: int = 30, db: Session = Depends(get_db),
     return rules.get_consumo_por_setor(db, current_user, dias)
 
 
-# ════════════════════════════════════════════════════════════════════════════
-# TENANTS
-# ════════════════════════════════════════════════════════════════════════════
+# ── TENANTS ───────────────────────────────────────────────────────────────
 @router.get("/tenants", response_model=List[schemas.TenantOut])
 def list_tenants(db: Session = Depends(get_db),
                  current_user=Depends(require_permission("gerenciar_tenants"))):
-    return db.query(models_db.Tenant).all()
+    return db.query(models_db.Tenant).order_by(models_db.Tenant.estado_uf).all()
 
 
 @router.post("/tenants", response_model=schemas.TenantOut, status_code=201)
 def create_tenant(body: schemas.TenantCreate, db: Session = Depends(get_db),
                   current_user=Depends(require_permission("gerenciar_tenants"))):
-    t = models_db.Tenant(id=str(uuid.uuid4()), **body.model_dump())
+    # Verifica duplicata de UF
+    existe = db.query(models_db.Tenant).filter(
+        models_db.Tenant.estado_uf == body.estado_uf.upper()).first()
+    if existe:
+        raise HTTPException(400, f"Estado '{body.estado_uf}' já cadastrado")
+    t = models_db.Tenant(id=str(uuid.uuid4()),
+                          nome=body.nome,
+                          estado_uf=body.estado_uf.upper())
     db.add(t); db.commit(); db.refresh(t)
     return t
 
@@ -91,26 +131,36 @@ def update_tenant(tid: str, body: schemas.TenantCreate,
                   db: Session = Depends(get_db),
                   current_user=Depends(require_permission("gerenciar_tenants"))):
     t = db.query(models_db.Tenant).filter(models_db.Tenant.id == tid).first()
-    if not t: raise HTTPException(404, "Tenant não encontrado")
-    for k, v in body.model_dump().items(): setattr(t, k, v)
-    db.commit(); db.refresh(t); return t
+    if not t: raise HTTPException(404, "Estado não encontrado")
+    t.nome      = body.nome
+    t.estado_uf = body.estado_uf.upper()
+    db.commit(); db.refresh(t)
+    return t
 
 
-# ════════════════════════════════════════════════════════════════════════════
-# USUÁRIOS
-# ════════════════════════════════════════════════════════════════════════════
+@router.delete("/tenants/{tid}", status_code=204)
+def delete_tenant(tid: str, db: Session = Depends(get_db),
+                  current_user=Depends(require_permission("gerenciar_tenants"))):
+    t = db.query(models_db.Tenant).filter(models_db.Tenant.id == tid).first()
+    if not t: raise HTTPException(404)
+    t.ativo = False; db.commit()
+
+
+# ── USUÁRIOS ──────────────────────────────────────────────────────────────
 @router.get("/usuarios", response_model=List[schemas.UsuarioOut])
 def list_usuarios(db: Session = Depends(get_db),
                   current_user=Depends(require_permission("gerenciar_usuarios"))):
     q = db.query(models_db.Usuario)
     if current_user.perfil != "superadmin":
         q = q.filter(models_db.Usuario.tenant_id == current_user.tenant_id)
-    return q.all()
+    return q.order_by(models_db.Usuario.nome).all()
 
 
 @router.post("/usuarios", response_model=schemas.UsuarioOut, status_code=201)
 def create_usuario(body: schemas.UsuarioCreate, db: Session = Depends(get_db),
                    current_user=Depends(require_permission("gerenciar_usuarios"))):
+    if len(body.senha) < 6:
+        raise HTTPException(400, "Senha deve ter no mínimo 6 caracteres")
     if db.query(models_db.Usuario).filter(
             models_db.Usuario.login == body.login.lower()).first():
         raise HTTPException(400, f"Login '{body.login}' já existe")
@@ -119,7 +169,8 @@ def create_usuario(body: schemas.UsuarioCreate, db: Session = Depends(get_db),
         login=body.login.lower(), senha_hash=hash_password(body.senha),
         perfil=body.perfil, tenant_id=body.tenant_id,
     )
-    db.add(u); db.commit(); db.refresh(u); return u
+    db.add(u); db.commit(); db.refresh(u)
+    return u
 
 
 @router.put("/usuarios/{uid}", response_model=schemas.UsuarioOut)
@@ -128,25 +179,32 @@ def update_usuario(uid: str, body: schemas.UsuarioUpdate,
                    current_user=Depends(require_permission("gerenciar_usuarios"))):
     u = db.query(models_db.Usuario).filter(models_db.Usuario.id == uid).first()
     if not u: raise HTTPException(404, "Usuário não encontrado")
-    if body.nome:       u.nome      = body.nome
-    if body.perfil:     u.perfil    = body.perfil
+    # Impede desativar o próprio usuário
+    if body.ativo is False and u.id == current_user.id:
+        raise HTTPException(400, "Não é possível desativar seu próprio usuário")
+    if body.nome:              u.nome      = body.nome
+    if body.perfil:            u.perfil    = body.perfil
     if body.tenant_id is not None: u.tenant_id = body.tenant_id
-    if body.ativo is not None:     u.ativo     = body.ativo
-    if body.nova_senha: u.senha_hash = hash_password(body.nova_senha)
-    db.commit(); db.refresh(u); return u
+    if body.ativo  is not None: u.ativo    = body.ativo
+    if body.nova_senha:
+        if len(body.nova_senha) < 6:
+            raise HTTPException(400, "Nova senha deve ter no mínimo 6 caracteres")
+        u.senha_hash = hash_password(body.nova_senha)
+    db.commit(); db.refresh(u)
+    return u
 
 
-# ════════════════════════════════════════════════════════════════════════════
-# EPIs
-# ════════════════════════════════════════════════════════════════════════════
-def _epi_with_status(epi, dias_alerta=30) -> dict:
+# ── EPIs ──────────────────────────────────────────────────────────────────
+def _epi_with_status(epi, dias_alerta: int = 30) -> dict:
     d = {c.name: getattr(epi, c.name) for c in epi.__table__.columns}
     d["status"] = rules.get_epi_status(epi, dias_alerta)
     return d
 
 
 @router.get("/epis")
-def list_epis(busca: str = "", db: Session = Depends(get_db),
+def list_epis(busca: str = "",
+              status_filter: str = "",
+              db: Session = Depends(get_db),
               current_user=Depends(require_permission("ver_dashboard"))):
     q = db.query(models_db.EPI).filter(models_db.EPI.ativo == True)
     q = tenant_filter(q, models_db.EPI, current_user)
@@ -156,26 +214,43 @@ def list_epis(busca: str = "", db: Session = Depends(get_db),
             models_db.EPI.ca.ilike(f"%{busca}%") |
             models_db.EPI.fabricante.ilike(f"%{busca}%")
         )
-    return [_epi_with_status(e) for e in q.all()]
+    epis = [_epi_with_status(e) for e in q.order_by(models_db.EPI.nome).all()]
+    # Filtro de status no Python (após calcular)
+    if status_filter:
+        epis = [e for e in epis if e["status"] == status_filter]
+    return epis
 
 
 @router.post("/epis", status_code=201)
 def create_epi(body: schemas.EPICreate, db: Session = Depends(get_db),
                current_user=Depends(require_permission("cadastrar_epi"))):
-    epi = models_db.EPI(id=str(uuid.uuid4()),
-                         tenant_id=current_user.tenant_id,
-                         **body.model_dump())
+    # BUG FIX: verifica CA duplicado no mesmo tenant
+    existe = db.query(models_db.EPI).filter(
+        models_db.EPI.ca == body.ca,
+        models_db.EPI.tenant_id == current_user.tenant_id,
+        models_db.EPI.ativo == True,
+    ).first()
+    if existe:
+        raise HTTPException(400, f"EPI com CA '{body.ca}' já cadastrado neste estado")
+    epi = models_db.EPI(
+        id=str(uuid.uuid4()),
+        tenant_id=current_user.tenant_id,
+        **body.model_dump()
+    )
     db.add(epi); db.commit(); db.refresh(epi)
     _gerar_qrcode(epi.id)
     return _epi_with_status(epi)
 
 
 @router.put("/epis/{eid}")
-def update_epi(eid: str, body: schemas.EPIUpdate, db: Session = Depends(get_db),
+def update_epi(eid: str, body: schemas.EPIUpdate,
+               db: Session = Depends(get_db),
                current_user=Depends(require_permission("editar_epi"))):
-    epi = db.query(models_db.EPI).filter(models_db.EPI.id == eid).first()
+    epi = db.query(models_db.EPI).filter(
+        models_db.EPI.id == eid).first()
     if not epi: raise HTTPException(404, "EPI não encontrado")
-    for k, v in body.model_dump(exclude_none=True).items(): setattr(epi, k, v)
+    for k, v in body.model_dump(exclude_none=True).items():
+        setattr(epi, k, v)
     epi.updated_at = datetime.utcnow()
     db.commit(); db.refresh(epi)
     return _epi_with_status(epi)
@@ -189,68 +264,105 @@ def inativar_epi(eid: str, db: Session = Depends(get_db),
     epi.ativo = False; db.commit()
 
 
-# ════════════════════════════════════════════════════════════════════════════
-# COLABORADORES
-# ════════════════════════════════════════════════════════════════════════════
+# ── COLABORADORES ─────────────────────────────────────────────────────────
 @router.get("/colaboradores", response_model=List[schemas.ColaboradorOut])
-def list_colaboradores(db: Session = Depends(get_db),
+def list_colaboradores(busca: str = "",
+                       db: Session = Depends(get_db),
                        current_user=Depends(require_permission("ver_dashboard"))):
     q = db.query(models_db.Colaborador).filter(models_db.Colaborador.ativo == True)
-    return tenant_filter(q, models_db.Colaborador, current_user).all()
+    q = tenant_filter(q, models_db.Colaborador, current_user)
+    if busca:
+        q = q.filter(
+            models_db.Colaborador.nome.ilike(f"%{busca}%") |
+            models_db.Colaborador.matricula.ilike(f"%{busca}%") |
+            models_db.Colaborador.setor.ilike(f"%{busca}%")
+        )
+    return q.order_by(models_db.Colaborador.nome).all()
 
 
 @router.post("/colaboradores", response_model=schemas.ColaboradorOut, status_code=201)
 def create_colaborador(body: schemas.ColaboradorCreate,
                        db: Session = Depends(get_db),
                        current_user=Depends(require_permission("cadastrar_epi"))):
-    c = models_db.Colaborador(id=str(uuid.uuid4()),
-                                tenant_id=current_user.tenant_id,
-                                **body.model_dump())
-    db.add(c); db.commit(); db.refresh(c); return c
+    # BUG FIX: verifica matrícula duplicada no tenant
+    existe = db.query(models_db.Colaborador).filter(
+        models_db.Colaborador.matricula == body.matricula,
+        models_db.Colaborador.tenant_id == current_user.tenant_id,
+        models_db.Colaborador.ativo == True,
+    ).first()
+    if existe:
+        raise HTTPException(400, f"Matrícula '{body.matricula}' já cadastrada neste estado")
+    c = models_db.Colaborador(
+        id=str(uuid.uuid4()),
+        tenant_id=current_user.tenant_id,
+        **body.model_dump()
+    )
+    db.add(c); db.commit(); db.refresh(c)
+    return c
 
 
 @router.put("/colaboradores/{cid}", response_model=schemas.ColaboradorOut)
 def update_colaborador(cid: str, body: schemas.ColaboradorCreate,
                        db: Session = Depends(get_db),
                        current_user=Depends(require_permission("cadastrar_epi"))):
-    c = db.query(models_db.Colaborador).filter(models_db.Colaborador.id == cid).first()
-    if not c: raise HTTPException(404, "Colaborador nao encontrado")
+    c = db.query(models_db.Colaborador).filter(
+        models_db.Colaborador.id == cid).first()
+    if not c: raise HTTPException(404, "Colaborador não encontrado")
     c.nome = body.nome; c.matricula = body.matricula
     c.setor = body.setor; c.funcao = body.funcao
-    db.commit(); db.refresh(c); return c
+    db.commit(); db.refresh(c)
+    return c
 
 
 @router.delete("/colaboradores/{cid}", status_code=204)
 def inativar_colaborador(cid: str, db: Session = Depends(get_db),
                           current_user=Depends(require_permission("cadastrar_epi"))):
-    c = db.query(models_db.Colaborador).filter(models_db.Colaborador.id == cid).first()
+    # BUG FIX: impede inativar colaborador com entregas ativas
+    c = db.query(models_db.Colaborador).filter(
+        models_db.Colaborador.id == cid).first()
     if not c: raise HTTPException(404)
     c.ativo = False; db.commit()
 
 
+# ── SETORES ───────────────────────────────────────────────────────────────
 @router.get("/setores")
 def list_setores(db: Session = Depends(get_db),
                  current_user=Depends(require_permission("ver_dashboard"))):
     q = db.query(models_db.Setor)
-    return [r.nome for r in tenant_filter(q, models_db.Setor, current_user).all()]
+    q = tenant_filter(q, models_db.Setor, current_user)
+    return [r.nome for r in q.order_by(models_db.Setor.nome).all()]
 
 
 @router.post("/setores", status_code=201)
 def create_setor(nome: str, db: Session = Depends(get_db),
                  current_user=Depends(require_permission("cadastrar_epi"))):
+    nome = nome.strip()
+    if not nome:
+        raise HTTPException(400, "Nome do setor não pode ser vazio")
+    # BUG FIX: não cria duplicata
+    existe = db.query(models_db.Setor).filter(
+        models_db.Setor.nome == nome,
+        models_db.Setor.tenant_id == current_user.tenant_id,
+    ).first()
+    if existe:
+        return {"nome": nome, "aviso": "Setor já existe"}
     s = models_db.Setor(id=str(uuid.uuid4()),
                          tenant_id=current_user.tenant_id, nome=nome)
-    db.add(s); db.commit(); return {"nome": nome}
+    db.add(s); db.commit()
+    return {"nome": nome}
 
 
-# ════════════════════════════════════════════════════════════════════════════
-# ENTREGAS
-# ════════════════════════════════════════════════════════════════════════════
+# ── ENTREGAS ──────────────────────────────────────────────────────────────
 @router.get("/entregas")
-def list_entregas(limit: int = 50, db: Session = Depends(get_db),
+def list_entregas(limit: int = 50,
+                  colaborador_id: str = None,
+                  epi_id: str = None,
+                  db: Session = Depends(get_db),
                   current_user=Depends(require_permission("ver_dashboard"))):
     q = db.query(models_db.Entrega).order_by(models_db.Entrega.data.desc())
     q = tenant_filter(q, models_db.Entrega, current_user)
+    if colaborador_id: q = q.filter(models_db.Entrega.colaborador_id == colaborador_id)
+    if epi_id:         q = q.filter(models_db.Entrega.epi_id == epi_id)
     result = []
     for e in q.limit(limit).all():
         d = {c.name: getattr(e, c.name) for c in e.__table__.columns}
@@ -272,15 +384,12 @@ def create_entrega(body: schemas.EntregaCreate,
     )
     if erros:
         raise HTTPException(400, detail=erros)
-
-    # Gera PDF da ficha
     try:
         pdf_path = _gerar_ficha_pdf(entrega, db, current_user)
         entrega.pdf_path = pdf_path
         db.commit()
-    except Exception as e:
-        pass  # Entrega salva; PDF é secundário
-
+    except Exception:
+        pass
     return {"id": entrega.id, "pdf_url": f"/api/entregas/{entrega.id}/ficha"}
 
 
@@ -296,21 +405,22 @@ def download_ficha(eid: str, db: Session = Depends(get_db),
                          filename=f"ficha-{eid[:8]}.pdf")
 
 
-# ════════════════════════════════════════════════════════════════════════════
-# ESTOQUE — ENTRADAS E AJUSTES
-# ════════════════════════════════════════════════════════════════════════════
+# ── ESTOQUE ───────────────────────────────────────────────────────────────
 @router.post("/estoque/{epi_id}/entrada")
 def entrada_estoque(epi_id: str, body: schemas.MovCreate,
                     db: Session = Depends(get_db),
                     current_user=Depends(require_permission("entrada_estoque"))):
     epi = db.query(models_db.EPI).filter(models_db.EPI.id == epi_id).first()
-    if not epi: raise HTTPException(404)
-    if body.quantidade <= 0: raise HTTPException(400, "Quantidade deve ser > 0")
+    if not epi: raise HTTPException(404, "EPI não encontrado")
+    if body.quantidade <= 0:
+        raise HTTPException(400, "Quantidade deve ser maior que zero")
+    if not body.motivo or not body.motivo.strip():
+        raise HTTPException(400, "Motivo é obrigatório")
     epi.quantidade += body.quantidade
     mov = models_db.Movimentacao(
         id=str(uuid.uuid4()), tenant_id=current_user.tenant_id,
         tipo="entrada", epi_id=epi_id,
-        quantidade=body.quantidade, motivo=body.motivo,
+        quantidade=body.quantidade, motivo=body.motivo.strip(),
         documento_nf=body.documento_nf or "",
         responsavel=body.responsavel or current_user.nome,
     )
@@ -323,14 +433,17 @@ def ajuste_estoque(epi_id: str, body: schemas.MovCreate,
                    db: Session = Depends(get_db),
                    current_user=Depends(require_permission("ajuste_estoque"))):
     epi = db.query(models_db.EPI).filter(models_db.EPI.id == epi_id).first()
-    if not epi: raise HTTPException(404)
+    if not epi: raise HTTPException(404, "EPI não encontrado")
+    if not body.motivo or not body.motivo.strip():
+        raise HTTPException(400, "Motivo é obrigatório para ajuste")
     nova_qtd = epi.quantidade + body.quantidade
-    if nova_qtd < 0: raise HTTPException(400, f"Ajuste resultaria em estoque negativo ({nova_qtd})")
+    if nova_qtd < 0:
+        raise HTTPException(400, f"Ajuste deixaria estoque negativo ({nova_qtd}). Disponível: {epi.quantidade}")
     epi.quantidade = nova_qtd
     mov = models_db.Movimentacao(
         id=str(uuid.uuid4()), tenant_id=current_user.tenant_id,
         tipo="ajuste", epi_id=epi_id,
-        quantidade=body.quantidade, motivo=body.motivo,
+        quantidade=body.quantidade, motivo=body.motivo.strip(),
         responsavel=body.responsavel or current_user.nome,
     )
     db.add(mov); db.commit()
@@ -338,35 +451,29 @@ def ajuste_estoque(epi_id: str, body: schemas.MovCreate,
 
 
 @router.get("/estoque/movimentacoes")
-def movimentacoes(epi_id: str = None, db: Session = Depends(get_db),
+def movimentacoes(epi_id: str = None,
+                  limit: int = 100,
+                  db: Session = Depends(get_db),
                   current_user=Depends(require_permission("entrada_estoque"))):
     q = db.query(models_db.Movimentacao).order_by(
         models_db.Movimentacao.data.desc())
     q = tenant_filter(q, models_db.Movimentacao, current_user)
     if epi_id: q = q.filter(models_db.Movimentacao.epi_id == epi_id)
-    return q.limit(100).all()
+    return q.limit(min(limit, 500)).all()
 
 
-# ════════════════════════════════════════════════════════════════════════════
-# RELATÓRIOS
-# ════════════════════════════════════════════════════════════════════════════
+# ── RELATÓRIOS ────────────────────────────────────────────────────────────
 @router.get("/relatorios/estoque")
 def relatorio_estoque(db: Session = Depends(get_db),
                       current_user=Depends(require_permission("ver_relatorios"))):
     from app.services.pdf_report import gerar_relatorio_estoque
     config = _get_config_dict(db, current_user.tenant_id)
-    import time
-    path = str(settings.DATA_DIR / "relatorios" /
-               f"estoque_{int(time.time())}.pdf")
+    path   = str(settings.DATA_DIR / "relatorios" / f"estoque_{int(time.time())}.pdf")
     Path(path).parent.mkdir(exist_ok=True)
-
-    # Carrega EPIs filtrados
     q = db.query(models_db.EPI).filter(models_db.EPI.ativo == True)
     q = tenant_filter(q, models_db.EPI, current_user)
-    epis = q.all()
-    gerar_relatorio_estoque(config, path, epis)
-    return FileResponse(path, media_type="application/pdf",
-                         filename="estoque.pdf")
+    gerar_relatorio_estoque(config, path, q.all())
+    return FileResponse(path, media_type="application/pdf", filename="estoque.pdf")
 
 
 @router.get("/relatorios/ca-alertas")
@@ -374,20 +481,37 @@ def relatorio_ca(db: Session = Depends(get_db),
                  current_user=Depends(require_permission("ver_relatorios"))):
     from app.services.pdf_report import gerar_relatorio_ca
     config = _get_config_dict(db, current_user.tenant_id)
-    import time
-    path = str(settings.DATA_DIR / "relatorios" /
-               f"ca_{int(time.time())}.pdf")
+    path   = str(settings.DATA_DIR / "relatorios" / f"ca_{int(time.time())}.pdf")
     Path(path).parent.mkdir(exist_ok=True)
     q = db.query(models_db.EPI).filter(models_db.EPI.ativo == True)
     q = tenant_filter(q, models_db.EPI, current_user)
-    epis = q.all()
-    gerar_relatorio_ca(config, path, epis)
+    gerar_relatorio_ca(config, path, q.all())
     return FileResponse(path, media_type="application/pdf", filename="ca_alertas.pdf")
 
 
-# ════════════════════════════════════════════════════════════════════════════
-# CONFIG
-# ════════════════════════════════════════════════════════════════════════════
+@router.get("/relatorios/entregas")
+def relatorio_entregas(
+        dt_ini: str = "", dt_fim: str = "",
+        db: Session = Depends(get_db),
+        current_user=Depends(require_permission("ver_relatorios"))):
+    """NOVO: relatório de entregas por período."""
+    from app.services.pdf_report import gerar_relatorio_entregas_pdf
+    config = _get_config_dict(db, current_user.tenant_id)
+    path   = str(settings.DATA_DIR / "relatorios" / f"entregas_{int(time.time())}.pdf")
+    Path(path).parent.mkdir(exist_ok=True)
+    q = db.query(models_db.Entrega).order_by(models_db.Entrega.data.desc())
+    q = tenant_filter(q, models_db.Entrega, current_user)
+    if dt_ini:
+        try: q = q.filter(models_db.Entrega.data >= datetime.fromisoformat(dt_ini))
+        except: pass
+    if dt_fim:
+        try: q = q.filter(models_db.Entrega.data <= datetime.fromisoformat(dt_fim + "T23:59:59"))
+        except: pass
+    gerar_relatorio_entregas_pdf(config, path, q.all())
+    return FileResponse(path, media_type="application/pdf", filename="entregas.pdf")
+
+
+# ── CONFIG ────────────────────────────────────────────────────────────────
 @router.get("/config")
 def get_config(db: Session = Depends(get_db),
                current_user=Depends(require_permission("ver_config"))):
@@ -403,7 +527,8 @@ def set_config(body: dict, db: Session = Depends(get_db),
             models_db.Config.chave == chave,
             models_db.Config.tenant_id == tid
         ).first()
-        if row: row.valor = str(valor)
+        if row:
+            row.valor = str(valor)
         else:
             db.add(models_db.Config(id=str(uuid.uuid4()),
                                      tenant_id=tid, chave=chave, valor=str(valor)))
@@ -411,15 +536,13 @@ def set_config(body: dict, db: Session = Depends(get_db),
     return {"ok": True}
 
 
-# ════════════════════════════════════════════════════════════════════════════
-# HELPERS INTERNOS
-# ════════════════════════════════════════════════════════════════════════════
+# ── HELPERS ───────────────────────────────────────────────────────────────
 def _get_config_dict(db: Session, tenant_id: Optional[str]) -> dict:
     defaults = {
-        "dias_alerta_ca": "30",
-        "empresa_nome":   "Minha Empresa Ltda",
-        "empresa_cnpj":   "00.000.000/0001-00",
-        "empresa_endereco":"",
+        "dias_alerta_ca":   "30",
+        "empresa_nome":     "Minha Empresa Ltda",
+        "empresa_cnpj":     "00.000.000/0001-00",
+        "empresa_endereco": "",
     }
     rows = db.query(models_db.Config).filter(
         models_db.Config.tenant_id.in_([tenant_id, None, ""])
@@ -437,13 +560,13 @@ def _gerar_qrcode(epi_id: str):
         qr = qrcode.QRCode(version=1, box_size=6, border=2)
         qr.add_data(epi_id)
         qr.make(fit=True)
-        img = qr.make_image()
-        img.save(str(settings.QRCODES_DIR / f"epi-{epi_id}.png"))
+        qr.make_image().save(str(settings.QRCODES_DIR / f"epi-{epi_id}.png"))
     except Exception:
         pass
 
 
 def _gerar_ficha_pdf(entrega: models_db.Entrega, db: Session, current_user) -> str:
+    import os
     from app.services.pdf_ficha import gerar_ficha_epi
     config  = _get_config_dict(db, current_user.tenant_id)
     colab   = entrega.colaborador
@@ -458,7 +581,6 @@ def _gerar_ficha_pdf(entrega: models_db.Entrega, db: Session, current_user) -> s
                "quantidade": entrega.quantidade,
                "observacao": entrega.observacao or ""}
     qr = str(settings.QRCODES_DIR / f"epi-{epi_obj.id}.png")
-    import os
     if not os.path.exists(qr): qr = ""
     settings.FICHAS_DIR.mkdir(parents=True, exist_ok=True)
     return gerar_ficha_epi(
