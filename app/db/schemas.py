@@ -163,6 +163,11 @@ class MovOut(BaseModel):
     model_config = {"from_attributes": True}
 
 
+class TrocarSenhaRequest(BaseModel):
+    senha_atual: str
+    nova_senha: str
+
+
 # ── DASHBOARD ────────────────────────────────────────────────────────────────
 class DashboardKPIs(BaseModel):
     total_itens: int
