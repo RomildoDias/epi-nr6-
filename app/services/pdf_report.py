@@ -123,3 +123,31 @@ def gerar_relatorio_ca(config, path, epis, dias_alerta=30):
     elems.append(Spacer(1,.3*cm))
     elems.append(Paragraph(f"Total: {len(alertas)} EPI(s) com atenção.", s))
     _build_doc(path, elems)
+
+
+def gerar_relatorio_entregas_pdf(config, path, entregas, dias_alerta=30):
+    from reportlab.platypus import Paragraph, Spacer
+    from reportlab.lib.units import cm
+    from reportlab.lib.styles import getSampleStyleSheet
+    s = getSampleStyleSheet()["Normal"]; s.fontSize = 8
+    elems = _header(config, "RELATÓRIO DE ENTREGAS")
+    if not entregas:
+        elems.append(Paragraph("Nenhuma entrega no período.", s))
+        _build_doc(path, elems); return
+    cols = ["Data","Colaborador","EPI","Qtd","Val. Prevista","Responsável"]
+    rows = []
+    for e in entregas:
+        colab_nome = e.colaborador.nome if e.colaborador else "—"
+        epi_nome   = e.epi.nome         if e.epi         else "—"
+        resp       = getattr(e, "responsavel", "") or "—"
+        val_prev   = e.validade_prevista.strftime("%d/%m/%Y") if e.validade_prevista else "—"
+        rows.append([
+            e.data.strftime("%d/%m/%Y %H:%M") if e.data else "—",
+            colab_nome, epi_nome, str(e.quantidade), val_prev, resp,
+        ])
+    elems.append(_make_table(rows, cols))
+    elems.append(Spacer(1,.3*cm))
+    from reportlab.lib.styles import getSampleStyleSheet
+    ns = getSampleStyleSheet()["Normal"]; ns.fontSize = 8
+    elems.append(Paragraph(f"Total de entregas: {len(entregas)}", ns))
+    _build_doc(path, elems)
