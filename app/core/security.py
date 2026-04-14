@@ -1,16 +1,16 @@
-# backend/app/core/security.py
+# app/core/security.py
 from datetime import datetime, timedelta
 from typing import Optional
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.db.database import get_db
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
+pwd_context    = CryptContext(schemes=["bcrypt"], deprecated="auto")
+oauth2_scheme  = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 PERFIS_PERMISSOES = {
     "superadmin": {
@@ -44,7 +44,7 @@ def verify_password(plain: str, hashed: str) -> bool:
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
     to_encode = data.copy()
-    expire = datetime.utcnow() + (expires_delta or timedelta(
+    expire    = datetime.utcnow() + (expires_delta or timedelta(
         minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES))
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, settings.SECRET_KEY, algorithm=settings.ALGORITHM)
@@ -66,7 +66,7 @@ async def get_current_user(token: str = Depends(oauth2_scheme),
     if not user_id:
         raise HTTPException(status_code=401, detail="Token inválido")
     user = db.query(models_db.Usuario).filter(
-        models_db.Usuario.id == user_id,
+        models_db.Usuario.id   == user_id,
         models_db.Usuario.ativo == True
     ).first()
     if not user:
@@ -85,8 +85,19 @@ def require_permission(acao: str):
     return checker
 
 
-def tenant_filter(query, model, current_user):
-    """Aplica filtro de tenant na query SQLAlchemy."""
+def tenant_filter(query, model, current_user, request: Request = None,
+                  _tenant: str = None):
+    """
+    Aplica filtro de tenant na query.
+
+    Superadmin pode passar ?_tenant=ID para filtrar um estado específico.
+    Outros perfis sempre filtram pelo próprio tenant.
+    """
     if current_user.perfil == "superadmin":
+        # Superadmin com filtro de estado selecionado
+        if _tenant:
+            return query.filter(model.tenant_id == _tenant)
+        # Superadmin sem filtro = vê tudo
         return query
+    # Outros perfis: sempre o próprio tenant
     return query.filter(model.tenant_id == current_user.tenant_id)
