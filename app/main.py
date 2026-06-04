@@ -10,6 +10,7 @@ from app.api.routes import router
 from app.db.database import init_db
 from app.core.config import settings
 from app.core.limiter import limiter
+import secrets
 import logging
 
 logger = logging.getLogger(__name__)
@@ -17,6 +18,9 @@ logger = logging.getLogger(__name__)
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    if not settings.SECRET_KEY or len(settings.SECRET_KEY) < 16:
+        settings.SECRET_KEY = secrets.token_hex(32)
+        logger.warning("SECRET_KEY gerada automaticamente")
     # Cria pastas necessárias
     for d in [settings.DATA_DIR, settings.FICHAS_DIR,
               settings.QRCODES_DIR, settings.DATA_DIR / "relatorios"]:
