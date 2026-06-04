@@ -7,6 +7,7 @@
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' https://unpkg.com; script-src 'self' 'unsafe-inline' https://unpkg.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'">
 <style>
 *{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',system-ui,sans-serif}
 :root{
@@ -173,7 +174,8 @@ function Login({onLogin}) {
       const data = await api("POST","/auth/login",{login,senha}, true);
       _token = data.access_token;
       _user  = {nome:data.nome, perfil:data.perfil,
-                tenant_id:data.tenant_id, tenant_nome:data.tenant_nome};
+                tenant_id:data.tenant_id, tenant_nome:data.tenant_nome,
+                precisa_trocar_senha:data.precisa_trocar_senha};
       localStorage.setItem("epi_token", _token);
       localStorage.setItem("epi_user", JSON.stringify(_user));
       onLogin(_user);
@@ -194,7 +196,7 @@ function Login({onLogin}) {
             <label>Usuário</label>
             <input value={login} onChange={e=>setLogin(e.target.value)} placeholder="login" autoFocus/>
             <label>Senha</label>
-            <input type="password" value={senha} onChange={e=>setSenha(e.target.value)} placeholder="••••••"/>
+            <input type="password" value={senha} onChange={e=>setSenha(e.target.value)} autoComplete="current-password" placeholder="Digite sua senha"/>
             {err && <div className="err">⚠ {err}</div>}
             <button className="login-btn" disabled={loading}>
               {loading ? "Entrando..." : "Entrar →"}
@@ -290,13 +292,16 @@ function Dashboard() {
 function EPIsPage() {
   const [epis,setEpis]=useState([]);
   const [busca,setBusca]=useState("");
-  const [modal,setModal]=useState(null); // null | "novo" | row
+  const [modal,setModal]=useState(null);
   const [form,setForm]=useState({});
   const [err,setErr]=useState("");
+  const [loading,setLoading]=useState(true);
 
   const load = useCallback(async()=>{
+    setLoading(true);
     const data = await api("GET",`/epis?busca=${encodeURIComponent(busca)}`);
     if(data) setEpis(data);
+    setLoading(false);
   },[busca]);
 
   useEffect(()=>{ load(); },[load]);
@@ -328,6 +333,7 @@ function EPIsPage() {
         <button className="btn btn-success" onClick={openNovo}>➕ Novo EPI</button>
       </div>
 
+      {loading ? <p style={{fontSize:14,color:"var(--muted)"}}>Carregando...</p> : (
       <div className="card">
         <table>
           <thead><tr>
@@ -347,8 +353,7 @@ function EPIsPage() {
             </tr>
           ))}</tbody>
         </table>
-      </div>
-
+      </div>)}
       {modal && (
         <div className="modal-bg" onClick={e=>e.target===e.currentTarget&&setModal(null)}>
           <div className="modal">
@@ -399,11 +404,15 @@ function EntregasPage() {
   const [form,setForm]=useState({quantidade:1});
   const [err,setErr]=useState("");
   const [epiSel,setEpiSel]=useState(null);
+  const [loading,setLoading]=useState(true);
 
   useEffect(()=>{
-    api("GET","/entregas?limit=50").then(d=>d&&setEntregas(d));
-    api("GET","/epis").then(d=>d&&setEpis(d));
-    api("GET","/colaboradores").then(d=>d&&setColabs(d));
+    setLoading(true);
+    Promise.all([
+      api("GET","/entregas?limit=50"),
+      api("GET","/epis"),
+      api("GET","/colaboradores"),
+    ]).then(([e,ep,c])=>{ if(e)setEntregas(e); if(ep)setEpis(ep); if(c)setColabs(c); setLoading(false); });
   },[]);
 
   function onEpiChange(id) {
@@ -424,7 +433,7 @@ function EntregasPage() {
 
   async function downloadFicha(id) {
     const blob = await api("GET",`/entregas/${id}/ficha`);
-    if(!blob) return;
+    if(!blob) { alert("Erro ao baixar ficha: PDF não encontrado."); return; }
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a"); a.href=url; a.download=`ficha-${id.slice(0,8)}.pdf`;
     a.click(); setTimeout(()=>URL.revokeObjectURL(url), 5000);
@@ -438,6 +447,7 @@ function EntregasPage() {
         </button>
       </div>
 
+      {loading ? <p style={{fontSize:14,color:"var(--muted)"}}>Carregando...</p> : (
       <div className="card">
         <table>
           <thead><tr><th>Data</th><th>Colaborador</th><th>EPI</th><th>Qtd</th><th>Val. Prevista</th><th></th></tr></thead>
@@ -452,8 +462,7 @@ function EntregasPage() {
             </tr>
           ))}</tbody>
         </table>
-      </div>
-
+      </div>)}
       {modal && (
         <div className="modal-bg" onClick={e=>e.target===e.currentTarget&&setModal(false)}>
           <div className="modal">
@@ -501,11 +510,12 @@ function EntregasPage() {
 // ── ESTOQUE ───────────────────────────────────────────────────────────────
 function EstoquePage() {
   const [epis,setEpis]=useState([]);
-  const [modal,setModal]=useState(null); // {tipo:"entrada"|"ajuste", epi}
+  const [modal,setModal]=useState(null);
   const [form,setForm]=useState({});
   const [err,setErr]=useState("");
+  const [loading,setLoading]=useState(true);
 
-  const load = ()=> api("GET","/epis").then(d=>d&&setEpis(d));
+  const load = ()=>{ setLoading(true); api("GET","/epis").then(d=>{ if(d)setEpis(d); setLoading(false); }); };
   useEffect(()=>{ load(); },[]);
 
   async function registrar() {
@@ -521,6 +531,7 @@ function EstoquePage() {
 
   return (
     <div>
+      {loading ? <p style={{fontSize:14,color:"var(--muted)"}}>Carregando...</p> : (
       <div className="card">
         <table>
           <thead><tr><th>EPI</th><th>CA</th><th>Tipo</th><th>Qtd</th><th>Mín</th><th>Validade CA</th><th>Status</th><th></th></tr></thead>
@@ -537,8 +548,7 @@ function EstoquePage() {
             </tr>
           ))}</tbody>
         </table>
-      </div>
-
+      </div>)}
       {modal && (
         <div className="modal-bg" onClick={e=>e.target===e.currentTarget&&setModal(null)}>
           <div className="modal">
@@ -576,7 +586,7 @@ function EstoquePage() {
 function RelatoriosPage() {
   async function baixar(path, nome) {
     const blob = await api("GET", path);
-    if(!blob) return;
+    if(!blob) { alert("Erro ao gerar relatório."); return; }
     const url = URL.createObjectURL(blob);
     const a = document.createElement("a"); a.href=url; a.download=nome;
     a.click(); URL.revokeObjectURL(url);
@@ -751,7 +761,7 @@ function UsuariosTab() {
                 <div><label>Login *</label><input value={form.login||""} onChange={e=>setForm({...form,login:e.target.value})} disabled={modal!=="novo"}/></div>
               </div>
               <label>{modal==="novo"?"Senha *":"Nova senha (em branco = manter)"}</label>
-              <input type="password" value={form.senha||form.nova_senha||""} onChange={e=>setForm({...form,[modal==="novo"?"senha":"nova_senha"]:e.target.value})}/>
+              <input type="password" autoComplete={modal==="novo"?"new-password":"off"} value={form.senha||form.nova_senha||""} onChange={e=>setForm({...form,[modal==="novo"?"senha":"nova_senha"]:e.target.value})}/>
               <div className="form-row">
                 <div><label>Perfil *</label>
                   <select value={form.perfil||"operador"} onChange={e=>setForm({...form,perfil:e.target.value})}>
@@ -895,17 +905,68 @@ function AppShell({user}) {
   );
 }
 
+// ── TROCAR SENHA MODAL ─────────────────────────────────────────────────────
+function TrocarSenhaModal({user, onDone}) {
+  const [atual,setAtual]=useState("");
+  const [nova,setNova]=useState("");
+  const [confirma,setConfirma]=useState("");
+  const [err,setErr]=useState("");
+  const [loading,setLoading]=useState(false);
+  const [ok,setOk]=useState(false);
+  async function submit(e) {
+    e.preventDefault(); setErr(""); setLoading(true);
+    if (nova !== confirma) { setErr("Senhas não conferem"); setLoading(false); return; }
+    if (nova.length < 6) { setErr("Nova senha deve ter no mínimo 6 caracteres"); setLoading(false); return; }
+    try {
+      await api("POST","/auth/trocar-senha",{senha_atual:atual,nova_senha:nova}, true);
+      setOk(true);
+      user.precisa_trocar_senha = false;
+      localStorage.setItem("epi_user", JSON.stringify(user));
+      setTimeout(onDone, 1500);
+    } catch(ex) { setErr(ex.message); }
+    setLoading(false);
+  }
+  return (
+    <div className="login-bg">
+      <div className="login-card" style={{maxWidth:400}}>
+        <div className="login-top">
+          <div className="login-icon">🔒</div>
+          <div className="login-title">Trocar Senha</div>
+          <div className="login-sub">Você está usando uma senha padrão. Defina uma nova senha.</div>
+        </div>
+        <div className="login-body">
+          {ok ? <p style={{textAlign:"center",color:"var(--green)",fontSize:13}}>✓ Senha alterada com sucesso!</p>
+          : <form onSubmit={submit}>
+              <label>Senha Atual</label>
+              <input type="password" value={atual} onChange={e=>setAtual(e.target.value)} autoFocus autoComplete="current-password" placeholder="Senha atual"/>
+              <label>Nova Senha</label>
+              <input type="password" value={nova} onChange={e=>setNova(e.target.value)} autoComplete="new-password" placeholder="Nova senha (mín. 6 caracteres)"/>
+              <label>Confirmar Nova Senha</label>
+              <input type="password" value={confirma} onChange={e=>setConfirma(e.target.value)} autoComplete="new-password" placeholder="Repita a nova senha"/>
+              {err && <div className="err">⚠ {err}</div>}
+              <button className="btn btn-primary" style={{width:"100%",marginTop:12,justifyContent:"center"}} disabled={loading}>
+                {loading ? "Salvando..." : "Salvar Nova Senha"}
+              </button>
+            </form>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ── ROOT ──────────────────────────────────────────────────────────────────
 function Root() {
   const [user,setUser]=useState(_user);
   const [checking,setChecking]=useState(true);
+  const [trocarSenha,setTrocarSenha]=useState(false);
 
   useEffect(()=>{
     if(_token) {
       api("GET","/auth/me",null,true).then(d=>{
         if(d) {
-          const u = {nome:d.nome, perfil:d.perfil, tenant_id:d.tenant_id, tenant_nome: _user?.tenant_nome};
+          const u = {nome:d.nome, perfil:d.perfil, tenant_id:d.tenant_id, tenant_nome: _user?.tenant_nome, precisa_trocar_senha:d.precisa_trocar_senha};
           _user = u; localStorage.setItem("epi_user", JSON.stringify(u)); setUser(u);
+          if(d.precisa_trocar_senha) setTrocarSenha(true);
         } else {
           localStorage.removeItem("epi_token"); localStorage.removeItem("epi_user");
           _token=""; _user=null; setUser(null);
@@ -916,7 +977,8 @@ function Root() {
   },[]);
 
   if(checking) return <div className="login-bg"><p style={{color:"#fff"}}>Verificando sessão...</p></div>;
-  if (!user) return <Login onLogin={u=>setUser(u)}/>;
+  if (!user) return <Login onLogin={u=>{setUser(u); if(u.precisa_trocar_senha) setTrocarSenha(true);}}/>;
+  if (trocarSenha) return <TrocarSenhaModal user={user} onDone={()=>setTrocarSenha(false)}/>;
   return <AppShell user={user}/>;
 }
 

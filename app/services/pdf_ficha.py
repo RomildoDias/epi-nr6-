@@ -18,8 +18,7 @@ TERMO_NR6 = (
 def format_date(val) -> str:
     if not val or str(val).strip() in ("", "nan", "NaT", "None"): return ""
     try:
-        from datetime import datetime as dt
-        d = dt.fromisoformat(str(val).split("T")[0])
+        d = datetime.fromisoformat(str(val).split("T")[0])
         return d.strftime("%d/%m/%Y")
     except Exception:
         return str(val)

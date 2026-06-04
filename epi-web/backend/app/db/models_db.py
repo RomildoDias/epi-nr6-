@@ -35,6 +35,8 @@ class Usuario(Base):
     tenant_id   = Column(String, ForeignKey("tenants.id"), nullable=True)
     ativo       = Column(Boolean, default=True)
     created_at  = Column(DateTime, default=datetime.utcnow)
+    ultimo_acesso = Column(DateTime, nullable=True)
+    precisa_trocar_senha = Column(Boolean, default=False)
 
     tenant = relationship("Tenant", back_populates="usuarios")
 

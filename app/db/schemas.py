@@ -16,6 +16,7 @@ class TokenResponse(BaseModel):
     nome: str
     tenant_id: Optional[str]
     tenant_nome: Optional[str]
+    precisa_trocar_senha: bool = False
 
 
 # ── TENANT ──────────────────────────────────────────────────────────────────
@@ -82,12 +83,16 @@ class EPICreate(BaseModel):
             raise ValueError("Não é permitido cadastrar EPI com CA vencido")
         return v
 
-class EPIUpdate(EPICreate):
+class EPIUpdate(BaseModel):
     nome: Optional[str] = None
     ca: Optional[str] = None
     fabricante: Optional[str] = None
     tipo_protecao: Optional[str] = None
+    vida_util_dias: Optional[int] = None
     validade_ca: Optional[date] = None
+    estoque_minimo: Optional[int] = None
+    quantidade: Optional[int] = None
+    foto_path: Optional[str] = None
 
 class EPIOut(BaseModel):
     id: str
@@ -166,6 +171,14 @@ class MovOut(BaseModel):
 class TrocarSenhaRequest(BaseModel):
     senha_atual: str
     nova_senha: str
+
+
+# ── CONFIG ───────────────────────────────────────────────────────────────────
+class ConfigUpdate(BaseModel):
+    empresa_nome: Optional[str] = None
+    empresa_cnpj: Optional[str] = None
+    empresa_endereco: Optional[str] = None
+    dias_alerta_ca: Optional[int] = None
 
 
 # ── DASHBOARD ────────────────────────────────────────────────────────────────

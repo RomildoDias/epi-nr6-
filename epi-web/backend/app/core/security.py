@@ -4,7 +4,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 from jose import JWTError, jwt
 from passlib.context import CryptContext
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.orm import Session
 from app.core.config import settings
@@ -96,8 +96,15 @@ def require_permission(acao: str):
     return checker
 
 
-def tenant_filter(query, model, current_user):
-    """Aplica filtro de tenant na query SQLAlchemy."""
+def tenant_filter(query, model, current_user, request: Request = None,
+                  _tenant: str = None):
+    """Aplica filtro de tenant na query SQLAlchemy.
+
+    Superadmin pode passar ?_tenant=ID para filtrar um estado específico.
+    Outros perfis sempre filtram pelo próprio tenant.
+    """
     if current_user.perfil == "superadmin":
+        if _tenant:
+            return query.filter(model.tenant_id == _tenant)
         return query
     return query.filter(model.tenant_id == current_user.tenant_id)

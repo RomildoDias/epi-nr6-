@@ -71,6 +71,7 @@ def get_dashboard_kpis(db: Session, current_user) -> dict:
             abaixo_minimo += 1
             alertas.append(f"Estoque baixo: {epi.nome} (Qtd: {epi.quantidade}, Mín: {epi.estoque_minimo})")
 
+    cutoff = datetime.utcnow() - timedelta(days=7)
     colab_7d = db.query(models_db.Entrega.colaborador_id).filter(
         models_db.Entrega.data >= cutoff
     )

@@ -9,7 +9,7 @@ import qrcode
 from datetime import date, datetime, timedelta
 from pathlib import Path
 from typing import Optional, List
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Request
 from fastapi.responses import FileResponse
 from sqlalchemy.orm import Session
 
@@ -23,6 +23,7 @@ from app.core.config import settings
 from app.services import rules
 from app.services.pdf_ficha import gerar_ficha_epi
 from app.services.pdf_report import gerar_relatorio_estoque, gerar_relatorio_ca
+from app.core.limiter import limiter
 
 router = APIRouter()
 
@@ -31,7 +32,8 @@ router = APIRouter()
 # AUTH
 # ════════════════════════════════════════════════════════════════════════════
 @router.post("/auth/login", response_model=schemas.TokenResponse)
-def login(body: schemas.LoginRequest, db: Session = Depends(get_db)):
+@limiter.limit("10/minute")
+def login(request: Request, body: schemas.LoginRequest, db: Session = Depends(get_db)):
     user = db.query(models_db.Usuario).filter(
         models_db.Usuario.login == body.login.lower().strip(),
         models_db.Usuario.ativo == True,
@@ -46,17 +48,36 @@ def login(body: schemas.LoginRequest, db: Session = Depends(get_db)):
             models_db.Tenant.id == user.tenant_id).first()
         tenant_nome = t.nome if t else ""
 
+    user.ultimo_acesso = datetime.utcnow()
+    db.commit()
+
     return schemas.TokenResponse(
         access_token=token, perfil=user.perfil,
         nome=user.nome, tenant_id=user.tenant_id,
         tenant_nome=tenant_nome,
+        precisa_trocar_senha=user.precisa_trocar_senha,
     )
 
 
 @router.get("/auth/me")
 def me(current_user=Depends(get_current_user)):
     return {"id": current_user.id, "nome": current_user.nome,
-            "perfil": current_user.perfil, "tenant_id": current_user.tenant_id}
+            "perfil": current_user.perfil, "tenant_id": current_user.tenant_id,
+            "precisa_trocar_senha": current_user.precisa_trocar_senha}
+
+
+@router.post("/auth/trocar-senha")
+def trocar_senha(body: schemas.TrocarSenhaRequest,
+                 db: Session = Depends(get_db),
+                 current_user=Depends(get_current_user)):
+    if not verify_password(body.senha_atual, current_user.senha_hash):
+        raise HTTPException(400, "Senha atual incorreta")
+    if len(body.nova_senha) < 6:
+        raise HTTPException(400, "Nova senha deve ter no mínimo 6 caracteres")
+    current_user.senha_hash = hash_password(body.nova_senha)
+    current_user.precisa_trocar_senha = False
+    db.commit()
+    return {"ok": True, "mensagem": "Senha alterada com sucesso"}
 
 
 # ════════════════════════════════════════════════════════════════════════════
@@ -86,7 +107,13 @@ def list_tenants(db: Session = Depends(get_db),
 @router.post("/tenants", response_model=schemas.TenantOut, status_code=201)
 def create_tenant(body: schemas.TenantCreate, db: Session = Depends(get_db),
                   current_user=Depends(require_permission("gerenciar_tenants"))):
-    t = models_db.Tenant(id=str(uuid.uuid4()), **body.model_dump())
+    existe = db.query(models_db.Tenant).filter(
+        models_db.Tenant.estado_uf == body.estado_uf.upper()).first()
+    if existe:
+        raise HTTPException(400, f"Estado '{body.estado_uf}' já cadastrado")
+    t = models_db.Tenant(id=str(uuid.uuid4()),
+                          nome=body.nome,
+                          estado_uf=body.estado_uf.upper())
     db.add(t); db.commit(); db.refresh(t)
     return t
 
@@ -233,6 +260,15 @@ def list_setores(db: Session = Depends(get_db),
 @router.post("/setores", status_code=201)
 def create_setor(nome: str, db: Session = Depends(get_db),
                  current_user=Depends(require_permission("cadastrar_epi"))):
+    nome = nome.strip()
+    if not nome:
+        raise HTTPException(400, "Nome do setor não pode ser vazio")
+    existe = db.query(models_db.Setor).filter(
+        models_db.Setor.nome == nome,
+        models_db.Setor.tenant_id == current_user.tenant_id,
+    ).first()
+    if existe:
+        return {"nome": nome, "aviso": "Setor já existe"}
     s = models_db.Setor(id=str(uuid.uuid4()),
                          tenant_id=current_user.tenant_id, nome=nome)
     db.add(s); db.commit(); return {"nome": nome}

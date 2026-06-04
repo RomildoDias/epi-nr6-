@@ -45,6 +45,7 @@ def _seed_superadmin():
             perfil     = "superadmin",
             tenant_id  = None,
             ativo      = True,
+            precisa_trocar_senha=True,
         )
         db.add(admin)
         db.commit()

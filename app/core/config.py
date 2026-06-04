@@ -5,7 +5,7 @@ from pathlib import Path
 
 class Settings(BaseSettings):
     APP_NAME: str = "Controle EPI NR-6"
-    SECRET_KEY: str = "dev_key_TROQUE_EM_PRODUCAO_min_32_chars!!"
+    SECRET_KEY: str = ""
     ALGORITHM:  str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 480
 

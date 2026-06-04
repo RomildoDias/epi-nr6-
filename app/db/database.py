@@ -43,6 +43,7 @@ def _seed_initial_data():
                 id=str(uuid.uuid4()), nome="Administrador",
                 login="admin", senha_hash=hash_password("admin123"),
                 perfil="superadmin", tenant_id=None, ativo=True,
+                precisa_trocar_senha=True,
             ))
             db.commit()
             print("✓ Superadmin criado: admin / admin123")
@@ -86,6 +87,7 @@ def _seed_initial_data():
                 id=str(uuid.uuid4()), nome=nome, login=login,
                 senha_hash=hash_password("senha123"),
                 perfil=perfil, tenant_id=tenant_ids[uf], ativo=True,
+                precisa_trocar_senha=True,
             ))
         db.commit()
         print("✓ Usuários demo criados (senha: senha123)")
