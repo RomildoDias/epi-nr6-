@@ -1,0 +1,988 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Controle EPI NR-6</title>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<meta http-equiv="Content-Security-Policy" content="default-src 'self' https://unpkg.com; script-src 'self' 'unsafe-inline' https://unpkg.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'">
+<style>
+*{box-sizing:border-box;margin:0;padding:0;font-family:'Segoe UI',system-ui,sans-serif}
+:root{
+  --sidebar:#0f1117;--sidebar-hover:#1c1f2e;--sidebar-active:#1e2235;
+  --sidebar-border:#252836;--bg:#f5f7fa;--card:#fff;--card-alt:#f8fafc;
+  --input:#fff;--border:#e5e7eb;--focus:#3b82f6;
+  --text:#111827;--muted:#6b7280;--hint:#9ca3af;--sidebar-text:#8b93a7;
+  --blue:#3b82f6;--green:#10b981;--amber:#f59e0b;--red:#ef4444;--purple:#8b5cf6;
+}
+body{background:var(--bg);color:var(--text)}
+.app{display:flex;height:100vh;overflow:hidden}
+.sidebar{width:220px;background:var(--sidebar);display:flex;flex-direction:column;flex-shrink:0}
+.logo{padding:18px 16px 14px;border-bottom:1px solid var(--sidebar-border)}
+.logo-icon{font-size:22px;color:var(--blue);margin-right:8px}
+.logo-title{font-size:13px;font-weight:600;color:#fff;display:block}
+.logo-sub{font-size:8px;color:var(--sidebar-text);display:block;margin-top:2px}
+.user-pill{display:flex;align-items:center;gap:8px;padding:10px 14px;border-bottom:1px solid var(--sidebar-border)}
+.avatar{width:32px;height:32px;border-radius:50%;background:var(--blue);display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:600;color:#fff;flex-shrink:0}
+.user-name{font-size:11px;color:#fff;font-weight:500}
+.user-role{font-size:9px;color:var(--sidebar-text)}
+.nav-section{font-size:7px;font-weight:700;color:var(--sidebar-text);padding:10px 16px 4px;letter-spacing:.08em}
+.nav-item{display:flex;align-items:center;gap:10px;padding:9px 16px;cursor:pointer;position:relative;transition:background .12s;border-radius:6px;margin:1px 6px}
+.nav-item:hover{background:var(--sidebar-hover)}
+.nav-item.active{background:var(--sidebar-active)}
+.nav-item.active::before{content:"";position:absolute;left:0;top:4px;bottom:4px;width:3px;background:var(--blue);border-radius:0 2px 2px 0}
+.nav-label{font-size:11px;color:var(--sidebar-text)}
+.nav-item.active .nav-label{color:#fff}
+.sidebar-footer{margin-top:auto;border-top:1px solid var(--sidebar-border);padding:8px 6px}
+.logout-btn{display:flex;align-items:center;gap:8px;padding:8px 14px;cursor:pointer;border-radius:6px;font-size:11px;color:var(--sidebar-text);transition:background .12s}
+.logout-btn:hover{background:var(--sidebar-hover);color:#fff}
+.main{flex:1;display:flex;flex-direction:column;overflow:hidden}
+.topbar{background:var(--card);border-bottom:.5px solid var(--border);padding:12px 24px;display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.page-title{font-size:16px;font-weight:600;color:var(--text)}
+.page-sub{font-size:11px;color:var(--muted);margin-top:2px}
+.content{flex:1;overflow-y:auto;padding:24px}
+.btn{display:inline-flex;align-items:center;gap:6px;padding:7px 14px;border-radius:6px;font-size:11px;font-weight:600;cursor:pointer;border:none;transition:opacity .15s}
+.btn:hover{opacity:.88}
+.btn-primary{background:var(--blue);color:#fff}
+.btn-success{background:var(--green);color:#fff}
+.btn-warning{background:var(--amber);color:#fff}
+.btn-danger{background:var(--red);color:#fff}
+.btn-secondary{background:#f3f4f6;color:#374151;border:.5px solid var(--border)}
+.btn-sm{padding:5px 10px;font-size:10px}
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:20px}
+.kpi{background:var(--card);border:.5px solid var(--border);border-radius:8px;overflow:hidden}
+.kpi-bar{height:3px}
+.kpi-inner{padding:12px}
+.kpi-label{font-size:10px;color:var(--muted)}
+.kpi-value{font-size:26px;font-weight:700;margin-top:4px}
+.row2{display:grid;grid-template-columns:2fr 3fr;gap:16px;margin-bottom:20px}
+.card{background:var(--card);border:.5px solid var(--border);border-radius:8px;overflow:hidden}
+.card-bar{height:3px}
+.card-body{padding:16px}
+.card-title{font-size:13px;font-weight:600;margin-bottom:4px}
+.card-sub{font-size:10px;color:var(--muted);margin-bottom:12px}
+.alert-item{font-size:11px;padding:6px 10px;border-radius:4px;margin-bottom:4px}
+.alert-danger{background:#fef2f2;color:#991b1b}
+.alert-warning{background:#fffbeb;color:#92400e}
+.alert-ok{background:#ecfdf5;color:#065f46}
+table{width:100%;border-collapse:collapse;font-size:12px}
+thead th{background:#f9fafb;color:var(--muted);font-weight:500;padding:8px 12px;text-align:left;border-bottom:.5px solid var(--border);font-size:11px}
+tbody tr{border-bottom:.5px solid var(--border);transition:background .1s}
+tbody tr:hover{background:#f9fafb}
+td{padding:8px 12px;color:var(--text)}
+.badge{display:inline-block;font-size:10px;font-weight:600;padding:2px 8px;border-radius:10px}
+.badge-ok{background:#d1fae5;color:#065f46}
+.badge-warn{background:#fef3c7;color:#92400e}
+.badge-danger{background:#fee2e2;color:#991b1b}
+.badge-info{background:#dbeafe;color:#1d4ed8}
+input,select,textarea{width:100%;padding:8px 10px;border:.5px solid var(--border);border-radius:6px;font-size:13px;background:var(--input);color:var(--text);outline:none;transition:border-color .15s}
+input:focus,select:focus,textarea:focus{border-color:var(--focus);box-shadow:0 0 0 2px rgba(59,130,246,.15)}
+label{display:block;font-size:11px;color:var(--muted);margin-bottom:4px;margin-top:10px}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.modal-bg{position:fixed;inset:0;background:rgba(0,0,0,.45);display:flex;align-items:center;justify-content:center;z-index:1000}
+.modal{background:var(--card);border-radius:10px;width:560px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,.25)}
+.modal-header{background:var(--blue);padding:16px 20px;display:flex;justify-content:space-between;align-items:center}
+.modal-header h3{color:#fff;font-size:14px;font-weight:600}
+.modal-close{background:none;border:none;color:#fff;font-size:18px;cursor:pointer}
+.modal-body{padding:20px}
+.modal-footer{padding:12px 20px;border-top:.5px solid var(--border);display:flex;gap:8px;justify-content:flex-end}
+.err{color:var(--red);font-size:11px;margin-top:6px}
+
+/* LOGIN */
+.login-bg{min-height:100vh;background:var(--sidebar);display:flex;align-items:center;justify-content:center}
+.login-card{background:var(--card);border-radius:12px;width:400px;padding:0;overflow:hidden;box-shadow:0 24px 64px rgba(0,0,0,.4)}
+.login-top{background:var(--sidebar);padding:32px 28px 24px;text-align:center}
+.login-icon{font-size:40px;color:var(--blue)}
+.login-title{font-size:18px;font-weight:600;color:#fff;margin-top:8px}
+.login-sub{font-size:11px;color:var(--sidebar-text);margin-top:4px}
+.login-body{padding:24px 28px}
+.login-btn{width:100%;padding:11px;background:var(--blue);color:#fff;border:none;border-radius:6px;font-size:13px;font-weight:600;cursor:pointer;margin-top:16px;transition:background .15s}
+.login-btn:hover{background:#2563eb}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const {useState, useEffect, useCallback, createContext, useContext} = React;
+
+// ── API CLIENT ────────────────────────────────────────────────────────────
+const API = window.location.origin;
+let _token = localStorage.getItem("epi_token") || "";
+let _user  = JSON.parse(localStorage.getItem("epi_user") || "null");
+
+async function api(method, path, body=null, skipAuthRedirect=false) {
+  const opts = {
+    method,
+    headers: {"Content-Type":"application/json",
+               ...(_token ? {"Authorization":`Bearer ${_token}`} : {})},
+    ...(body ? {body: JSON.stringify(body)} : {}),
+  };
+  const r = await fetch(`${API}/api${path}`, opts);
+  if (r.status === 401) {
+    if (!skipAuthRedirect) { logout(); }
+    return null;
+  }
+  if (!r.ok) {
+    const err = await r.json().catch(()=>({detail:"Erro desconhecido"}));
+    throw new Error(Array.isArray(err.detail) ? err.detail.join(", ") : String(err.detail));
+  }
+  const ct = r.headers.get("content-type")||"";
+  if (ct.includes("application/pdf")) return r.blob();
+  if (r.status === 204) return null;
+  return r.json();
+}
+
+function logout() {
+  _token = ""; _user = null;
+  localStorage.removeItem("epi_token");
+  localStorage.removeItem("epi_user");
+  window.location.reload();
+}
+
+// ── AUTH CONTEXT ─────────────────────────────────────────────────────────
+const AuthCtx = createContext(null);
+
+// ── STATUS BADGE ─────────────────────────────────────────────────────────
+function StatusBadge({status}) {
+  const map = {
+    OK:["badge-ok","✓ OK"],
+    ABAIXO_MINIMO:["badge-warn","⚠ Estoque Baixo"],
+    CA_VENCIDO:["badge-danger","✕ CA Vencido"],
+    CA_ALERTA:["badge-warn","! CA Alerta"],
+  };
+  const [cls,lbl] = map[status]||["badge-info",status||"—"];
+  return <span className={`badge ${cls}`}>{lbl}</span>;
+}
+
+function fmt_date(v) {
+  if (!v) return "—";
+  try { return new Date(v).toLocaleDateString("pt-BR"); } catch{ return v; }
+}
+
+// ── LOGIN ─────────────────────────────────────────────────────────────────
+function Login({onLogin}) {
+  const [login,setLogin]=useState("");
+  const [senha,setSenha]=useState("");
+  const [err,setErr]=useState("");
+  const [loading,setLoading]=useState(false);
+
+  async function submit(e) {
+    e.preventDefault(); setErr(""); setLoading(true);
+    try {
+      const data = await api("POST","/auth/login",{login,senha}, true);
+      _token = data.access_token;
+      _user  = {nome:data.nome, perfil:data.perfil,
+                tenant_id:data.tenant_id, tenant_nome:data.tenant_nome,
+                precisa_trocar_senha:data.precisa_trocar_senha};
+      localStorage.setItem("epi_token", _token);
+      localStorage.setItem("epi_user", JSON.stringify(_user));
+      onLogin(_user);
+    } catch(ex) { setErr(ex.message); }
+    setLoading(false);
+  }
+
+  return (
+    <div className="login-bg">
+      <div className="login-card">
+        <div className="login-top">
+          <div className="login-icon">⬡</div>
+          <div className="login-title">EPI NR-6</div>
+          <div className="login-sub">Sistema de Controle de Equipamentos</div>
+        </div>
+        <div className="login-body">
+          <form onSubmit={submit}>
+            <label>Usuário</label>
+            <input value={login} onChange={e=>setLogin(e.target.value)} placeholder="login" autoFocus/>
+            <label>Senha</label>
+            <input type="password" value={senha} onChange={e=>setSenha(e.target.value)} autoComplete="current-password" placeholder="Digite sua senha"/>
+            {err && <div className="err">⚠ {err}</div>}
+            <button className="login-btn" disabled={loading}>
+              {loading ? "Entrando..." : "Entrar →"}
+            </button>
+          </form>
+          <p style={{fontSize:10,color:"var(--hint)",textAlign:"center",marginTop:12}}>
+            v2.0 · NR-6 · Acesso seguro por tenant
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── DASHBOARD ─────────────────────────────────────────────────────────────
+function Dashboard() {
+    const [kpis,setKpis]=useState(null);
+  const [consumo,setConsumo]=useState([]);
+  const [loading,setLoading]=useState(true);
+
+  useEffect(()=>{
+    Promise.all([
+      api("GET","/dashboard/kpis"),
+      api("GET","/dashboard/consumo-setor"),
+    ]).then(([k,c])=>{ if(k)setKpis(k); if(c)setConsumo(c); setLoading(false); });
+  },[]);
+
+  if(loading) return <div className="content"><p style={{fontSize:14,color:"var(--muted)"}}>Carregando...</p></div>;
+
+  const kpiDefs = [
+    {key:"total_itens",label:"Total em Estoque",color:"var(--blue)"},
+    {key:"abaixo_minimo",label:"Abaixo do Mínimo",color:"var(--amber)"},
+    {key:"ca_alertas",label:"Alertas de CA",color:"var(--red)"},
+    {key:"colaboradores_7d",label:"Colaboradores (7d)",color:"var(--green)"},
+  ];
+
+  return (
+    <div>
+      <div className="kpi-grid">
+        {kpiDefs.map(k=>(
+          <div className="kpi" key={k.key}>
+            <div className="kpi-bar" style={{background:k.color}}/>
+            <div className="kpi-inner">
+              <div className="kpi-label">{k.label}</div>
+              <div className="kpi-value" style={{color:k.color}}>
+                {kpis ? kpis[k.key] : "—"}
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="row2">
+        <div className="card">
+          <div className="card-bar" style={{background:"var(--red)"}}/>
+          <div className="card-body">
+            <div className="card-title">Alertas Ativos</div>
+            <div className="card-sub">Estoque baixo e CA vencendo</div>
+            {kpis?.alertas?.length === 0 && (
+              <div className="alert-item alert-ok">✓ Nenhum alerta no momento</div>
+            )}
+            {kpis?.alertas?.map((a,i)=>(
+              <div key={i} className={`alert-item ${a.includes("VENCIDO")?"alert-danger":"alert-warning"}`}>
+                {a}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        <div className="card">
+          <div className="card-bar" style={{background:"var(--blue)"}}/>
+          <div className="card-body">
+            <div className="card-title">Consumo por Setor (30 dias)</div>
+            <div className="card-sub">Unidades entregues por setor</div>
+            {consumo.length === 0 ? (
+              <p style={{fontSize:12,color:"var(--muted)"}}>Sem dados no período.</p>
+            ) : (
+              <table>
+                <thead><tr><th>Setor</th><th>Qtd. Entregue</th></tr></thead>
+                <tbody>{consumo.map((r,i)=>(
+                  <tr key={i}><td>{r.setor}</td><td>{r.quantidade}</td></tr>
+                ))}</tbody>
+              </table>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── EPIs ──────────────────────────────────────────────────────────────────
+function EPIsPage() {
+  const [epis,setEpis]=useState([]);
+  const [busca,setBusca]=useState("");
+  const [modal,setModal]=useState(null);
+  const [form,setForm]=useState({});
+  const [err,setErr]=useState("");
+  const [loading,setLoading]=useState(true);
+
+  const load = useCallback(async()=>{
+    setLoading(true);
+    const data = await api("GET",`/epis?busca=${encodeURIComponent(busca)}`);
+    if(data) setEpis(data);
+    setLoading(false);
+  },[busca]);
+
+  useEffect(()=>{ load(); },[load]);
+
+  const TIPOS=["Impacto","Químico","Óptico","Queda","Auditiva","Respiratória","Térmica","Soldagem","Mãos","Pés","Cabeça","Outros"];
+
+  function openNovo(){ setForm({vida_util_dias:365,estoque_minimo:5,quantidade:0,tipo_protecao:TIPOS[0]}); setErr(""); setModal("novo"); }
+  function openEdit(row){ setForm({...row, validade_ca: row.validade_ca?.slice(0,10)}); setErr(""); setModal(row); }
+
+  async function salvar() {
+    setErr("");
+    try {
+      if(modal==="novo") await api("POST","/epis",form);
+      else await api("PUT",`/epis/${modal.id}`,form);
+      setModal(null); load();
+    } catch(ex){ setErr(ex.message); }
+  }
+
+  async function inativar(id) {
+    if(!confirm("Inativar este EPI?")) return;
+    await api("DELETE",`/epis/${id}`); load();
+  }
+
+  return (
+    <div>
+      <div style={{display:"flex",gap:8,marginBottom:16}}>
+        <input style={{maxWidth:300}} placeholder="Buscar por nome, CA ou fabricante..."
+          value={busca} onChange={e=>setBusca(e.target.value)}/>
+        <button className="btn btn-success" onClick={openNovo}>➕ Novo EPI</button>
+      </div>
+
+      {loading ? <p style={{fontSize:14,color:"var(--muted)"}}>Carregando...</p> : (
+      <div className="card">
+        <table>
+          <thead><tr>
+            <th>Nome</th><th>CA</th><th>Fabricante</th><th>Tipo</th>
+            <th>Qtd</th><th>Mín</th><th>Validade CA</th><th>Status</th><th></th>
+          </tr></thead>
+          <tbody>{epis.map(e=>(
+            <tr key={e.id}>
+              <td>{e.nome}</td><td>{e.ca}</td><td>{e.fabricante}</td>
+              <td>{e.tipo_protecao}</td><td>{e.quantidade}</td><td>{e.estoque_minimo}</td>
+              <td>{fmt_date(e.validade_ca)}</td>
+              <td><StatusBadge status={e.status}/></td>
+              <td><div style={{display:"flex",gap:4}}>
+                <button className="btn btn-secondary btn-sm" onClick={()=>openEdit(e)}>✎</button>
+                <button className="btn btn-danger btn-sm" onClick={()=>inativar(e.id)}>✕</button>
+              </div></td>
+            </tr>
+          ))}</tbody>
+        </table>
+      </div>)}
+      {modal && (
+        <div className="modal-bg" onClick={e=>e.target===e.currentTarget&&setModal(null)}>
+          <div className="modal">
+            <div className="modal-header">
+              <h3>{modal==="novo"?"Novo EPI":"Editar EPI"}</h3>
+              <button className="modal-close" onClick={()=>setModal(null)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <div className="form-row">
+                <div><label>Nome *</label><input value={form.nome||""} onChange={e=>setForm({...form,nome:e.target.value})}/></div>
+                <div><label>CA * (só dígitos)</label><input value={form.ca||""} onChange={e=>setForm({...form,ca:e.target.value})}/></div>
+              </div>
+              <div className="form-row">
+                <div><label>Fabricante *</label><input value={form.fabricante||""} onChange={e=>setForm({...form,fabricante:e.target.value})}/></div>
+                <div><label>Tipo de Proteção *</label>
+                  <select value={form.tipo_protecao||TIPOS[0]} onChange={e=>setForm({...form,tipo_protecao:e.target.value})}>
+                    {TIPOS.map(t=><option key={t}>{t}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="form-row">
+                <div><label>Vida Útil (dias) *</label><input type="number" value={form.vida_util_dias||365} onChange={e=>setForm({...form,vida_util_dias:+e.target.value})}/></div>
+                <div><label>Validade CA *</label><input type="date" value={form.validade_ca||""} onChange={e=>setForm({...form,validade_ca:e.target.value})}/></div>
+              </div>
+              <div className="form-row">
+                <div><label>Estoque Mínimo *</label><input type="number" value={form.estoque_minimo||5} onChange={e=>setForm({...form,estoque_minimo:+e.target.value})}/></div>
+                <div><label>Quantidade Inicial *</label><input type="number" value={form.quantidade||0} onChange={e=>setForm({...form,quantidade:+e.target.value})}/></div>
+              </div>
+              {err && <div className="err">⚠ {err}</div>}
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={()=>setModal(null)}>Cancelar</button>
+              <button className="btn btn-success" onClick={salvar}>✔ Salvar EPI</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── ENTREGAS ──────────────────────────────────────────────────────────────
+function EntregasPage() {
+  const [entregas,setEntregas]=useState([]);
+  const [epis,setEpis]=useState([]);
+  const [colabs,setColabs]=useState([]);
+  const [modal,setModal]=useState(false);
+  const [form,setForm]=useState({quantidade:1});
+  const [err,setErr]=useState("");
+  const [epiSel,setEpiSel]=useState(null);
+  const [loading,setLoading]=useState(true);
+
+  useEffect(()=>{
+    setLoading(true);
+    Promise.all([
+      api("GET","/entregas?limit=50"),
+      api("GET","/epis"),
+      api("GET","/colaboradores"),
+    ]).then(([e,ep,c])=>{ if(e)setEntregas(e); if(ep)setEpis(ep); if(c)setColabs(c); setLoading(false); });
+  },[]);
+
+  function onEpiChange(id) {
+    const e = epis.find(x=>x.id===id);
+    setEpiSel(e||null);
+    setForm(f=>({...f,epi_id:id}));
+  }
+
+  async function confirmar() {
+    setErr("");
+    try {
+      await api("POST","/entregas",form);
+      setModal(false);
+      api("GET","/entregas?limit=50").then(d=>d&&setEntregas(d));
+      api("GET","/epis").then(d=>d&&setEpis(d));
+    } catch(ex){ setErr(ex.message); }
+  }
+
+  async function downloadFicha(id) {
+    const blob = await api("GET",`/entregas/${id}/ficha`);
+    if(!blob) { alert("Erro ao baixar ficha: PDF não encontrado."); return; }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href=url; a.download=`ficha-${id.slice(0,8)}.pdf`;
+    a.click(); setTimeout(()=>URL.revokeObjectURL(url), 5000);
+  }
+
+  return (
+    <div>
+      <div style={{display:"flex",justifyContent:"flex-end",marginBottom:16}}>
+        <button className="btn btn-success" onClick={()=>{setForm({quantidade:1});setErr("");setEpiSel(null);setModal(true);}}>
+          ➕ Registrar Entrega
+        </button>
+      </div>
+
+      {loading ? <p style={{fontSize:14,color:"var(--muted)"}}>Carregando...</p> : (
+      <div className="card">
+        <table>
+          <thead><tr><th>Data</th><th>Colaborador</th><th>EPI</th><th>Qtd</th><th>Val. Prevista</th><th></th></tr></thead>
+          <tbody>{entregas.map(e=>(
+            <tr key={e.id}>
+              <td>{fmt_date(e.data)}</td>
+              <td>{e.colaborador_nome||"—"}</td>
+              <td>{e.epi_nome||"—"}</td>
+              <td>{e.quantidade}</td>
+              <td>{fmt_date(e.validade_prevista)}</td>
+              <td><button className="btn btn-secondary btn-sm" onClick={()=>downloadFicha(e.id)}>📄 Ficha</button></td>
+            </tr>
+          ))}</tbody>
+        </table>
+      </div>)}
+      {modal && (
+        <div className="modal-bg" onClick={e=>e.target===e.currentTarget&&setModal(false)}>
+          <div className="modal">
+            <div className="modal-header">
+              <h3>Registrar Entrega de EPI</h3>
+              <button className="modal-close" onClick={()=>setModal(false)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <label>Colaborador *</label>
+              <select value={form.colaborador_id||""} onChange={e=>setForm({...form,colaborador_id:e.target.value})}>
+                <option value="">Selecione...</option>
+                {colabs.map(c=><option key={c.id} value={c.id}>{c.nome} — {c.matricula} ({c.setor})</option>)}
+              </select>
+              <label>EPI *</label>
+              <select value={form.epi_id||""} onChange={e=>onEpiChange(e.target.value)}>
+                <option value="">Selecione...</option>
+                {epis.map(e=><option key={e.id} value={e.id}>{e.nome} · CA {e.ca} · Saldo: {e.quantidade}</option>)}
+              </select>
+              {epiSel && (
+                <div style={{background:"#f8fafc",border:".5px solid var(--border)",borderRadius:6,padding:"10px 12px",marginTop:8,fontSize:11}}>
+                  <span style={{color:"var(--muted)"}}>CA: </span>{epiSel.ca} &nbsp;
+                  <span style={{color:"var(--muted)"}}>Validade: </span>{fmt_date(epiSel.validade_ca)} &nbsp;
+                  <StatusBadge status={epiSel.status}/>
+                </div>
+              )}
+              <div className="form-row">
+                <div><label>Quantidade *</label><input type="number" min="1" value={form.quantidade||1} onChange={e=>setForm({...form,quantidade:+e.target.value})}/></div>
+                <div><label>Responsável</label><input value={form.responsavel||""} onChange={e=>setForm({...form,responsavel:e.target.value})}/></div>
+              </div>
+              <label>Observação</label>
+              <textarea rows="2" value={form.observacao||""} onChange={e=>setForm({...form,observacao:e.target.value})}/>
+              {err && <div className="err">⚠ {err}</div>}
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={()=>setModal(false)}>Cancelar</button>
+              <button className="btn btn-success" onClick={confirmar}>✔ Confirmar Entrega</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── ESTOQUE ───────────────────────────────────────────────────────────────
+function EstoquePage() {
+  const [epis,setEpis]=useState([]);
+  const [modal,setModal]=useState(null);
+  const [form,setForm]=useState({});
+  const [err,setErr]=useState("");
+  const [loading,setLoading]=useState(true);
+
+  const load = ()=>{ setLoading(true); api("GET","/epis").then(d=>{ if(d)setEpis(d); setLoading(false); }); };
+  useEffect(()=>{ load(); },[]);
+
+  async function registrar() {
+    setErr("");
+    try {
+      const path = modal.tipo==="entrada"
+        ? `/estoque/${modal.epi.id}/entrada`
+        : `/estoque/${modal.epi.id}/ajuste`;
+      await api("POST", path, form);
+      setModal(null); load();
+    } catch(ex){ setErr(ex.message); }
+  }
+
+  return (
+    <div>
+      {loading ? <p style={{fontSize:14,color:"var(--muted)"}}>Carregando...</p> : (
+      <div className="card">
+        <table>
+          <thead><tr><th>EPI</th><th>CA</th><th>Tipo</th><th>Qtd</th><th>Mín</th><th>Validade CA</th><th>Status</th><th></th></tr></thead>
+          <tbody>{epis.map(e=>(
+            <tr key={e.id}>
+              <td>{e.nome}</td><td>{e.ca}</td><td>{e.tipo_protecao}</td>
+              <td><strong>{e.quantidade}</strong></td><td>{e.estoque_minimo}</td>
+              <td>{fmt_date(e.validade_ca)}</td>
+              <td><StatusBadge status={e.status}/></td>
+              <td><div style={{display:"flex",gap:4}}>
+                <button className="btn btn-success btn-sm" onClick={()=>{setForm({quantidade:1});setErr("");setModal({tipo:"entrada",epi:e});}}>📥 Entrada</button>
+                <button className="btn btn-warning btn-sm" onClick={()=>{setForm({quantidade:0});setErr("");setModal({tipo:"ajuste",epi:e});}}>🔧 Ajuste</button>
+              </div></td>
+            </tr>
+          ))}</tbody>
+        </table>
+      </div>)}
+      {modal && (
+        <div className="modal-bg" onClick={e=>e.target===e.currentTarget&&setModal(null)}>
+          <div className="modal">
+            <div className="modal-header" style={{background:modal.tipo==="entrada"?"var(--green)":"var(--amber)"}}>
+              <h3>{modal.tipo==="entrada"?"Nova Entrada de Estoque":"Ajuste de Estoque"}</h3>
+              <button className="modal-close" onClick={()=>setModal(null)}>✕</button>
+            </div>
+            <div className="modal-body">
+              <p style={{fontWeight:600,marginBottom:4}}>{modal.epi.nome}</p>
+              <p style={{fontSize:11,color:"var(--muted)",marginBottom:12}}>Saldo atual: {modal.epi.quantidade} unidades</p>
+              <label>Quantidade * {modal.tipo==="ajuste"&&"(negativo para reduzir)"}</label>
+              <input type="number" value={form.quantidade??""} onChange={e=>setForm({...form,quantidade:+e.target.value})}/>
+              <label>Motivo *</label>
+              <input value={form.motivo||""} onChange={e=>setForm({...form,motivo:e.target.value})}/>
+              {modal.tipo==="entrada" && <>
+                <label>Nº Nota Fiscal</label>
+                <input value={form.documento_nf||""} onChange={e=>setForm({...form,documento_nf:e.target.value})}/>
+              </>}
+              <label>Responsável</label>
+              <input value={form.responsavel||""} onChange={e=>setForm({...form,responsavel:e.target.value})}/>
+              {err && <div className="err">⚠ {err}</div>}
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={()=>setModal(null)}>Cancelar</button>
+              <button className={`btn ${modal.tipo==="entrada"?"btn-success":"btn-warning"}`} onClick={registrar}>✔ Registrar</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── RELATÓRIOS ────────────────────────────────────────────────────────────
+function RelatoriosPage() {
+  async function baixar(path, nome) {
+    const blob = await api("GET", path);
+    if(!blob) { alert("Erro ao gerar relatório."); return; }
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a"); a.href=url; a.download=nome;
+    a.click(); URL.revokeObjectURL(url);
+  }
+  const btns = [
+    {label:"Estoque Atual",       sub:"Todos os EPIs com status",         path:"/relatorios/estoque",    file:"estoque.pdf",    color:"var(--blue)"},
+    {label:"CA Vencido / Alerta", sub:"EPIs com certificado em atenção",  path:"/relatorios/ca-alertas", file:"ca_alertas.pdf", color:"var(--red)"},
+  ];
+  return (
+    <div>
+      <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:16}}>
+        {btns.map(b=>(
+          <div key={b.path} className="card" style={{cursor:"pointer"}} onClick={()=>baixar(b.path,b.file)}>
+            <div className="card-bar" style={{background:b.color}}/>
+            <div className="card-body">
+              <div className="card-title">{b.label}</div>
+              <div className="card-sub">{b.sub}</div>
+              <button className="btn btn-primary btn-sm">📄 Gerar PDF</button>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── ADMIN ─────────────────────────────────────────────────────────────────
+function AdminPage() {
+  const podeGerenciarTenants = _user?.perfil === "superadmin";
+  const [tab,setTab]=useState(podeGerenciarTenants?"tenants":"usuarios");
+  const tabs = ["usuarios", ...(podeGerenciarTenants ? ["tenants"] : [])];
+  return (
+    <div>
+      <div style={{display:"flex",gap:8,marginBottom:16}}>
+        {tabs.map(t=>(
+          <button key={t} className={`btn ${tab===t?"btn-primary":"btn-secondary"}`} onClick={()=>setTab(t)}>
+            {t==="tenants"?"🗺 Estados / Tenants":"👤 Usuários"}
+          </button>
+        ))}
+      </div>
+      {tab==="tenants" ? <TenantsTab/> : <UsuariosTab/>}
+    </div>
+  );
+}
+
+const ESTADOS=[
+  ["AC","Acre"],["AM","Amazonas"],["AP","Amapá"],["PA","Pará"],
+  ["RO","Rondônia"],["RR","Roraima"],["TO","Tocantins"],
+  ["AL","Alagoas"],["BA","Bahia"],["CE","Ceará"],["MA","Maranhão"],
+  ["PB","Paraíba"],["PE","Pernambuco"],["PI","Piauí"],
+  ["RN","Rio Grande do Norte"],["SE","Sergipe"],
+];
+
+function TenantsTab() {
+  const [tenants,setTenants]=useState([]);
+  const [modal,setModal]=useState(null);
+  const [form,setForm]=useState({});
+  const [err,setErr]=useState("");
+
+  useEffect(()=>{ api("GET","/tenants").then(d=>d&&setTenants(d)); },[]);
+
+  async function salvar() {
+    setErr("");
+    try {
+      if(modal==="novo") await api("POST","/tenants",form);
+      else await api("PUT",`/tenants/${modal.id}`,form);
+      setModal(null);
+      api("GET","/tenants").then(d=>d&&setTenants(d));
+    } catch(ex){ setErr(ex.message); }
+  }
+
+  return (
+    <div>
+      <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}>
+        <button className="btn btn-success" onClick={()=>{setForm({});setErr("");setModal("novo");}}>➕ Novo Estado</button>
+      </div>
+      <div className="card">
+        <table>
+          <thead><tr><th>UF</th><th>Nome / Apelido</th><th>Status</th><th></th></tr></thead>
+          <tbody>{tenants.map(t=>(
+            <tr key={t.id}>
+              <td><span className="badge badge-info">{t.estado_uf}</span></td>
+              <td>{t.nome}</td>
+              <td><span className={`badge ${t.ativo?"badge-ok":"badge-danger"}`}>{t.ativo?"✓ Ativo":"✕ Inativo"}</span></td>
+              <td><button className="btn btn-secondary btn-sm" onClick={()=>{setForm({...t});setErr("");setModal(t);}}>✎ Editar</button></td>
+            </tr>
+          ))}</tbody>
+        </table>
+      </div>
+      {modal && (
+        <div className="modal-bg" onClick={e=>e.target===e.currentTarget&&setModal(null)}>
+          <div className="modal">
+            <div className="modal-header"><h3>{modal==="novo"?"Novo Estado":"Editar Estado"}</h3>
+              <button className="modal-close" onClick={()=>setModal(null)}>✕</button></div>
+            <div className="modal-body">
+              <label>Estado *</label>
+              <select value={form.estado_uf||""} onChange={e=>setForm({...form,estado_uf:e.target.value})}>
+                <option value="">Selecione...</option>
+                {ESTADOS.map(([uf,n])=><option key={uf} value={uf}>{uf} — {n}</option>)}
+              </select>
+              <label>Nome / Apelido *</label>
+              <input value={form.nome||""} onChange={e=>setForm({...form,nome:e.target.value})} placeholder="Ex: Filial PA"/>
+              {err && <div className="err">⚠ {err}</div>}
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={()=>setModal(null)}>Cancelar</button>
+              <button className="btn btn-success" onClick={salvar}>✔ Salvar</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function UsuariosTab() {
+  const [users,setUsers]=useState([]);
+  const [tenants,setTenants]=useState([]);
+  const [modal,setModal]=useState(null);
+  const [form,setForm]=useState({});
+  const [err,setErr]=useState("");
+
+  const load = ()=>{
+    api("GET","/usuarios").then(d=>d&&setUsers(d));
+    api("GET","/tenants").then(d=>d&&setTenants(d||[]));
+  };
+  useEffect(load,[]);
+
+  const tMap = Object.fromEntries((tenants||[]).map(t=>[t.id,t.nome]));
+
+  async function salvar() {
+    setErr("");
+    try {
+      if(modal==="novo") await api("POST","/usuarios",form);
+      else await api("PUT",`/usuarios/${modal.id}`,{
+        nome:form.nome, perfil:form.perfil,
+        tenant_id:form.tenant_id||null,
+        ativo:form.ativo,
+        ...(form.nova_senha?{nova_senha:form.nova_senha}:{})
+      });
+      setModal(null); load();
+    } catch(ex){ setErr(ex.message); }
+  }
+
+  return (
+    <div>
+      <div style={{display:"flex",justifyContent:"flex-end",marginBottom:12}}>
+        <button className="btn btn-success" onClick={()=>{setForm({perfil:"operador"});setErr("");setModal("novo");}}>➕ Novo Usuário</button>
+      </div>
+      <div className="card">
+        <table>
+          <thead><tr><th>Nome</th><th>Login</th><th>Perfil</th><th>Estado</th><th>Status</th><th></th></tr></thead>
+          <tbody>{users.map(u=>(
+            <tr key={u.id}>
+              <td>{u.nome}</td><td><code>{u.login}</code></td>
+              <td><span className="badge badge-info">{u.perfil}</span></td>
+              <td>{u.tenant_id ? tMap[u.tenant_id]||u.tenant_id : "— Todos —"}</td>
+              <td><span className={`badge ${u.ativo?"badge-ok":"badge-danger"}`}>{u.ativo?"✓ Ativo":"✕ Inativo"}</span></td>
+              <td><button className="btn btn-secondary btn-sm" onClick={()=>{setForm({...u});setErr("");setModal(u);}}>✎</button></td>
+            </tr>
+          ))}</tbody>
+        </table>
+      </div>
+      {modal && (
+        <div className="modal-bg" onClick={e=>e.target===e.currentTarget&&setModal(null)}>
+          <div className="modal">
+            <div className="modal-header"><h3>{modal==="novo"?"Novo Usuário":"Editar Usuário"}</h3>
+              <button className="modal-close" onClick={()=>setModal(null)}>✕</button></div>
+            <div className="modal-body">
+              <div className="form-row">
+                <div><label>Nome *</label><input value={form.nome||""} onChange={e=>setForm({...form,nome:e.target.value})}/></div>
+                <div><label>Login *</label><input value={form.login||""} onChange={e=>setForm({...form,login:e.target.value})} disabled={modal!=="novo"}/></div>
+              </div>
+              <label>{modal==="novo"?"Senha *":"Nova senha (em branco = manter)"}</label>
+              <input type="password" autoComplete={modal==="novo"?"new-password":"off"} value={form.senha||form.nova_senha||""} onChange={e=>setForm({...form,[modal==="novo"?"senha":"nova_senha"]:e.target.value})}/>
+              <div className="form-row">
+                <div><label>Perfil *</label>
+                  <select value={form.perfil||"operador"} onChange={e=>setForm({...form,perfil:e.target.value})}>
+                    {["superadmin","admin","operador","visualizador"].map(p=><option key={p}>{p}</option>)}
+                  </select>
+                </div>
+                <div><label>Estado (Tenant)</label>
+                  <select value={form.tenant_id||""} onChange={e=>setForm({...form,tenant_id:e.target.value||null})}>
+                    <option value="">— Todos (Superadmin) —</option>
+                    {(tenants||[]).map(t=><option key={t.id} value={t.id}>{t.estado_uf} — {t.nome}</option>)}
+                  </select>
+                </div>
+              </div>
+              {err && <div className="err">⚠ {err}</div>}
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={()=>setModal(null)}>Cancelar</button>
+              <button className="btn btn-success" onClick={salvar}>✔ Salvar</button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── CONFIGURAÇÕES ─────────────────────────────────────────────────────────
+function ConfigPage() {
+  const [cfg,setCfg]=useState({});
+  const [ok,setOk]=useState("");
+
+  useEffect(()=>{ api("GET","/config").then(d=>d&&setCfg(d)); },[]);
+
+  async function salvar() {
+    try { await api("PUT","/config",cfg); setOk("✓ Salvo com sucesso!"); setTimeout(()=>setOk(""),3000); }
+    catch(ex){ setOk("Erro: "+ex.message); }
+  }
+
+  return (
+    <div className="card" style={{maxWidth:520}}>
+      <div className="card-bar" style={{background:"var(--blue)"}}/>
+      <div className="card-body">
+        <div className="card-title">Configurações</div>
+        <div className="card-sub">Parâmetros da empresa e alertas</div>
+        <label>Nome da empresa</label>
+        <input value={cfg.empresa_nome||""} onChange={e=>setCfg({...cfg,empresa_nome:e.target.value})}/>
+        <label>CNPJ</label>
+        <input value={cfg.empresa_cnpj||""} onChange={e=>setCfg({...cfg,empresa_cnpj:e.target.value})}/>
+        <label>Endereço</label>
+        <input value={cfg.empresa_endereco||""} onChange={e=>setCfg({...cfg,empresa_endereco:e.target.value})}/>
+        <label>Dias de alerta para CA a vencer</label>
+        <input type="number" value={cfg.dias_alerta_ca||30} onChange={e=>setCfg({...cfg,dias_alerta_ca:e.target.value})}/>
+        {ok && <div style={{marginTop:8,fontSize:11,color:ok.startsWith("Erro")?"var(--red)":"var(--green)"}}>{ok}</div>}
+        <div style={{marginTop:16}}>
+          <button className="btn btn-success" onClick={salvar}>✔ Salvar Configurações</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── APP SHELL ─────────────────────────────────────────────────────────────
+const PAGES = {
+  dashboard:  {label:"◉  Dashboard",     perm:"ver_dashboard",      comp:Dashboard},
+  epis:       {label:"◈  EPIs",          perm:"cadastrar_epi",       comp:EPIsPage},
+  entregas:   {label:"◎  Entregas",      perm:"registrar_entrega",   comp:EntregasPage},
+  estoque:    {label:"▣  Estoque",       perm:"entrada_estoque",     comp:EstoquePage},
+  relatorios: {label:"◫  Relatórios",    perm:"ver_relatorios",      comp:RelatoriosPage},
+  admin:      {label:"◆  Administração", perm:"gerenciar_usuarios",  comp:AdminPage},
+  config:     {label:"◌  Configurações", perm:"ver_config",          comp:ConfigPage},
+};
+
+const PERMS = {
+  superadmin: new Set(Object.values(PAGES).map(p=>p.perm)),
+  admin:      new Set(["ver_dashboard","cadastrar_epi","editar_epi","inativar_epi","registrar_entrega","entrada_estoque","ajuste_estoque","ver_relatorios","gerenciar_usuarios","ver_config","editar_config","backup"]),
+  operador:   new Set(["ver_dashboard","cadastrar_epi","editar_epi","registrar_entrega","entrada_estoque","ajuste_estoque","ver_relatorios"]),
+  visualizador:new Set(["ver_dashboard","ver_relatorios"]),
+};
+
+const PAGE_TITLES = {
+  dashboard:"Dashboard", epis:"Cadastro de EPIs", entregas:"Entregas",
+  estoque:"Estoque", relatorios:"Relatórios", admin:"Administração", config:"Configurações",
+};
+const PAGE_SUBS = {
+  dashboard:"Visão geral do sistema",
+  epis:"Gerencie equipamentos de proteção individual",
+  entregas:"Registre entregas e gere fichas NR-6",
+  estoque:"Entradas, ajustes e movimentações",
+  relatorios:"Gere relatórios em PDF",
+  admin:"Tenants (estados) e usuários",
+  config:"Parâmetros do sistema",
+};
+
+function AppShell({user}) {
+  const [page,setPage]=useState("dashboard");
+  const perms = PERMS[user.perfil] || new Set();
+  const visivel = Object.entries(PAGES).filter(([,p])=>perms.has(p.perm));
+  const PageComp = PAGES[page]?.comp || Dashboard;
+
+  return (
+    <div className="app">
+      <div className="sidebar">
+        <div className="logo">
+          <span className="logo-icon">⬡</span>
+          <span className="logo-title">EPI NR-6</span>
+          <span className="logo-sub">{user.tenant_nome || "Matriz / Todos os Estados"}</span>
+        </div>
+
+        <div className="user-pill">
+          <div className="avatar">{user.nome[0].toUpperCase()}</div>
+          <div>
+            <div className="user-name">{user.nome}</div>
+            <div className="user-role">{user.perfil.charAt(0).toUpperCase()+user.perfil.slice(1)}</div>
+          </div>
+        </div>
+
+        <div className="nav-section">MENU</div>
+        {visivel.map(([key,p])=>(
+          <div key={key} className={`nav-item${page===key?" active":""}`} onClick={()=>setPage(key)}>
+            <span className="nav-label">{p.label}</span>
+          </div>
+        ))}
+
+        <div className="sidebar-footer">
+          <div className="logout-btn" onClick={logout}>⇠ &nbsp; Sair</div>
+        </div>
+      </div>
+
+      <div className="main">
+        <div className="topbar">
+          <div>
+            <div className="page-title">{PAGE_TITLES[page]}</div>
+            <div className="page-sub">{PAGE_SUBS[page]}</div>
+          </div>
+        </div>
+        <div className="content">
+          <PageComp/>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── TROCAR SENHA MODAL ─────────────────────────────────────────────────────
+function TrocarSenhaModal({user, onDone}) {
+  const [atual,setAtual]=useState("");
+  const [nova,setNova]=useState("");
+  const [confirma,setConfirma]=useState("");
+  const [err,setErr]=useState("");
+  const [loading,setLoading]=useState(false);
+  const [ok,setOk]=useState(false);
+  async function submit(e) {
+    e.preventDefault(); setErr(""); setLoading(true);
+    if (nova !== confirma) { setErr("Senhas não conferem"); setLoading(false); return; }
+    if (nova.length < 6) { setErr("Nova senha deve ter no mínimo 6 caracteres"); setLoading(false); return; }
+    try {
+      await api("POST","/auth/trocar-senha",{senha_atual:atual,nova_senha:nova}, true);
+      setOk(true);
+      user.precisa_trocar_senha = false;
+      localStorage.setItem("epi_user", JSON.stringify(user));
+      setTimeout(onDone, 1500);
+    } catch(ex) { setErr(ex.message); }
+    setLoading(false);
+  }
+  return (
+    <div className="login-bg">
+      <div className="login-card" style={{maxWidth:400}}>
+        <div className="login-top">
+          <div className="login-icon">🔒</div>
+          <div className="login-title">Trocar Senha</div>
+          <div className="login-sub">Você está usando uma senha padrão. Defina uma nova senha.</div>
+        </div>
+        <div className="login-body">
+          {ok ? <p style={{textAlign:"center",color:"var(--green)",fontSize:13}}>✓ Senha alterada com sucesso!</p>
+          : <form onSubmit={submit}>
+              <label>Senha Atual</label>
+              <input type="password" value={atual} onChange={e=>setAtual(e.target.value)} autoFocus autoComplete="current-password" placeholder="Senha atual"/>
+              <label>Nova Senha</label>
+              <input type="password" value={nova} onChange={e=>setNova(e.target.value)} autoComplete="new-password" placeholder="Nova senha (mín. 6 caracteres)"/>
+              <label>Confirmar Nova Senha</label>
+              <input type="password" value={confirma} onChange={e=>setConfirma(e.target.value)} autoComplete="new-password" placeholder="Repita a nova senha"/>
+              {err && <div className="err">⚠ {err}</div>}
+              <button className="btn btn-primary" style={{width:"100%",marginTop:12,justifyContent:"center"}} disabled={loading}>
+                {loading ? "Salvando..." : "Salvar Nova Senha"}
+              </button>
+            </form>}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── ROOT ──────────────────────────────────────────────────────────────────
+function Root() {
+  const [user,setUser]=useState(_user);
+  const [checking,setChecking]=useState(true);
+  const [trocarSenha,setTrocarSenha]=useState(false);
+
+  useEffect(()=>{
+    if(_token) {
+      api("GET","/auth/me",null,true).then(d=>{
+        if(d) {
+          const u = {nome:d.nome, perfil:d.perfil, tenant_id:d.tenant_id, tenant_nome: _user?.tenant_nome, precisa_trocar_senha:d.precisa_trocar_senha};
+          _user = u; localStorage.setItem("epi_user", JSON.stringify(u)); setUser(u);
+          if(d.precisa_trocar_senha) setTrocarSenha(true);
+        } else {
+          localStorage.removeItem("epi_token"); localStorage.removeItem("epi_user");
+          _token=""; _user=null; setUser(null);
+        }
+        setChecking(false);
+      });
+    } else { setChecking(false); }
+  },[]);
+
+  if(checking) return <div className="login-bg"><p style={{color:"#fff"}}>Verificando sessão...</p></div>;
+  if (!user) return <Login onLogin={u=>{setUser(u); if(u.precisa_trocar_senha) setTrocarSenha(true);}}/>;
+  if (trocarSenha) return <TrocarSenhaModal user={user} onDone={()=>setTrocarSenha(false)}/>;
+  return <AppShell user={user}/>;
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<Root/>);
+</script>
+</body>
+</html>
