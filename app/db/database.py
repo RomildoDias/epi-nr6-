@@ -11,6 +11,8 @@ engine = create_engine(
     settings.DATABASE_URL,
     connect_args={"check_same_thread": False} if _is_sqlite else {},
     poolclass=NullPool if _is_sqlite else None,
+    pool_size=5,
+    max_overflow=3,
     pool_pre_ping=True,
 )
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
