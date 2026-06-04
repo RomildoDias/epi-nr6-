@@ -36,6 +36,26 @@ def health(db: Session = Depends(get_db)):
         return {"status": "erro", "detalhe": str(e)}
 
 
+@router.get("/debug/db")
+def debug_db(db: Session = Depends(get_db)):
+    """Diagnóstico detalhado do banco."""
+    db_url = settings.DATABASE_URL
+    masked = db_url.split("@")[-1] if "@" in db_url else db_url
+    admin = db.query(models_db.Usuario).filter(
+        models_db.Usuario.login == "admin").first()
+    tenants = db.query(models_db.Tenant).count()
+    return {
+        "banco": "sqlite" if db_url.startswith("sqlite") else "postgresql",
+        "host": masked,
+        "admin_existe": admin is not None,
+        "admin_id": admin.id if admin else None,
+        "tenants": tenants,
+        "usuarios": db.query(models_db.Usuario).count(),
+        "epis": db.query(models_db.EPI).count(),
+        "colaboradores": db.query(models_db.Colaborador).count(),
+    }
+
+
 # ── AUTH ──────────────────────────────────────────────────────────────────
 @router.post("/auth/login", response_model=schemas.TokenResponse)
 @limiter.limit("10/minute")

@@ -39,7 +39,13 @@ def _seed_initial_data():
     db = SessionLocal()
     try:
         # ── Superadmin ────────────────────────────────────────────────────
-        if not db.query(Usuario).filter(Usuario.login == "admin").first():
+        admin = db.query(Usuario).filter(Usuario.login == "admin").first()
+        if admin:
+            admin.senha_hash = hash_password("admin123")
+            admin.precisa_trocar_senha = True
+            db.commit()
+            print("✓ Superadmin atualizado: admin / admin123")
+        else:
             db.add(Usuario(
                 id=str(uuid.uuid4()), nome="Administrador",
                 login="admin", senha_hash=hash_password("admin123"),
