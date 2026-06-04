@@ -176,7 +176,6 @@ class ResetAdminRequest(BaseModel):
     reset_key: str
     nova_senha: str = "admin123"
 
-
 # ── CONFIG ───────────────────────────────────────────────────────────────────
 class ConfigUpdate(BaseModel):
     empresa_nome: Optional[str] = None

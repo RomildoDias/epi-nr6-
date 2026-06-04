@@ -105,8 +105,6 @@ def reset_admin(body: schemas.ResetAdminRequest, db: Session = Depends(get_db)):
     user.precisa_trocar_senha = True
     db.commit()
     return {"ok": True, "mensagem": f"Senha do admin redefinida para: {body.nova_senha}"}
-
-
 # ── DASHBOARD ─────────────────────────────────────────────────────────────
 @router.get("/dashboard/kpis", response_model=schemas.DashboardKPIs)
 def dashboard_kpis(_tenant: str = "",
