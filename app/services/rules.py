@@ -108,25 +108,29 @@ def get_consumo_por_setor(db: Session, current_user, dias: int = 30, _tenant: st
 def registrar_entrega(db: Session, current_user,
                       colaborador_id: str, epi_id: str,
                       quantidade: int, observacao: str,
-                      responsavel: str) -> tuple:
+                      responsavel: str,
+                      tenant_id: str = None) -> tuple:
     import uuid
 
     if quantidade <= 0:
         return None, ["Quantidade deve ser maior que zero."]
 
+    tid = tenant_id or current_user.tenant_id
     epi = db.query(models_db.EPI).filter(
         models_db.EPI.id == epi_id,
         models_db.EPI.ativo == True,
+        models_db.EPI.tenant_id == tid,
     ).first()
     if not epi:
-        return None, ["EPI não encontrado ou inativo."]
+        return None, ["EPI não encontrado ou inativo neste estado."]
 
     colab = db.query(models_db.Colaborador).filter(
         models_db.Colaborador.id == colaborador_id,
         models_db.Colaborador.ativo == True,
+        models_db.Colaborador.tenant_id == tid,
     ).first()
     if not colab:
-        return None, ["Colaborador não encontrado ou inativo."]
+        return None, ["Colaborador não encontrado ou inativo neste estado."]
 
     erros = []
     if epi.validade_ca < date.today():
@@ -143,7 +147,7 @@ def registrar_entrega(db: Session, current_user,
 
     entrega = models_db.Entrega(
         id                = str(uuid.uuid4()),
-        tenant_id         = current_user.tenant_id,
+        tenant_id         = tid,
         colaborador_id    = colaborador_id,
         epi_id            = epi_id,
         quantidade        = quantidade,
@@ -154,7 +158,7 @@ def registrar_entrega(db: Session, current_user,
 
     mov = models_db.Movimentacao(
         id          = str(uuid.uuid4()),
-        tenant_id   = current_user.tenant_id,
+        tenant_id   = tid,
         tipo        = "saida",
         epi_id      = epi_id,
         quantidade  = -quantidade,

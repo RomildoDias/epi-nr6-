@@ -124,7 +124,9 @@ def reset_admin(body: schemas.ResetAdminRequest, db: Session = Depends(get_db)):
     user.senha_hash = hash_password(body.nova_senha)
     user.precisa_trocar_senha = True
     db.commit()
-    return {"ok": True, "mensagem": f"Senha do admin redefinida para: {body.nova_senha}"}
+    return {"ok": True, "mensagem": "Senha do admin redefinida com sucesso"}
+
+
 # ── DASHBOARD ─────────────────────────────────────────────────────────────
 @router.get("/dashboard/kpis", response_model=schemas.DashboardKPIs)
 def dashboard_kpis(_tenant: str = "",
@@ -138,6 +140,16 @@ def consumo_setor(dias: int = 30, _tenant: str = "",
                   db: Session = Depends(get_db),
                   current_user=Depends(require_permission("ver_dashboard"))):
     return get_consumo_por_setor(db, current_user, dias, _tenant=_tenant)
+
+
+def _parse_tenant(current_user, _tenant: str = "", fallback: str = None):
+    if current_user.perfil == "superadmin":
+        if _tenant:
+            return _tenant
+        if fallback:
+            return fallback
+        raise HTTPException(400, "Superadmin precisa selecionar um estado (use ?_tenant=ID)")
+    return current_user.tenant_id
 
 
 # ── TENANTS ───────────────────────────────────────────────────────────────
@@ -193,16 +205,18 @@ def list_usuarios(db: Session = Depends(get_db),
 
 @router.post("/usuarios", response_model=schemas.UsuarioOut, status_code=201)
 def create_usuario(body: schemas.UsuarioCreate, db: Session = Depends(get_db),
+                   _tenant: str = "",
                    current_user=Depends(require_permission("gerenciar_usuarios"))):
     if len(body.senha) < 6:
         raise HTTPException(400, "Senha deve ter no mínimo 6 caracteres")
     if db.query(models_db.Usuario).filter(
             models_db.Usuario.login == body.login.lower()).first():
         raise HTTPException(400, f"Login '{body.login}' já existe")
+    tid = _parse_tenant(current_user, _tenant, body.tenant_id)
     u = models_db.Usuario(
         id=str(uuid.uuid4()), nome=body.nome,
         login=body.login.lower(), senha_hash=hash_password(body.senha),
-        perfil=body.perfil, tenant_id=body.tenant_id,
+        perfil=body.perfil, tenant_id=tid,
     )
     db.add(u); db.commit(); db.refresh(u)
     return u
@@ -257,17 +271,19 @@ def list_epis(busca: str = "",
 
 @router.post("/epis", status_code=201)
 def create_epi(body: schemas.EPICreate, db: Session = Depends(get_db),
+               _tenant: str = "",
                current_user=Depends(require_permission("cadastrar_epi"))):
+    tid = _parse_tenant(current_user, _tenant)
     existe = db.query(models_db.EPI).filter(
         models_db.EPI.ca == body.ca,
-        models_db.EPI.tenant_id == current_user.tenant_id,
+        models_db.EPI.tenant_id == tid,
         models_db.EPI.ativo == True,
     ).first()
     if existe:
         raise HTTPException(400, f"EPI com CA '{body.ca}' já cadastrado neste estado")
     epi = models_db.EPI(
         id=str(uuid.uuid4()),
-        tenant_id=current_user.tenant_id,
+        tenant_id=tid,
         **body.model_dump()
     )
     db.add(epi); db.commit(); db.refresh(epi)
@@ -278,9 +294,11 @@ def create_epi(body: schemas.EPICreate, db: Session = Depends(get_db),
 @router.put("/epis/{eid}")
 def update_epi(eid: str, body: schemas.EPIUpdate,
                db: Session = Depends(get_db),
+               _tenant: str = "",
                current_user=Depends(require_permission("editar_epi"))):
-    epi = db.query(models_db.EPI).filter(
-        models_db.EPI.id == eid).first()
+    q = db.query(models_db.EPI).filter(models_db.EPI.id == eid)
+    q = tenant_filter(q, models_db.EPI, current_user, _tenant=_tenant)
+    epi = q.first()
     if not epi: raise HTTPException(404, "EPI não encontrado")
     for k, v in body.model_dump(exclude_none=True).items():
         setattr(epi, k, v)
@@ -317,17 +335,19 @@ def list_colaboradores(busca: str = "",
 @router.post("/colaboradores", response_model=schemas.ColaboradorOut, status_code=201)
 def create_colaborador(body: schemas.ColaboradorCreate,
                        db: Session = Depends(get_db),
+                       _tenant: str = "",
                        current_user=Depends(require_permission("cadastrar_epi"))):
+    tid = _parse_tenant(current_user, _tenant)
     existe = db.query(models_db.Colaborador).filter(
         models_db.Colaborador.matricula == body.matricula,
-        models_db.Colaborador.tenant_id == current_user.tenant_id,
+        models_db.Colaborador.tenant_id == tid,
         models_db.Colaborador.ativo == True,
     ).first()
     if existe:
         raise HTTPException(400, f"Matrícula '{body.matricula}' já cadastrada neste estado")
     c = models_db.Colaborador(
         id=str(uuid.uuid4()),
-        tenant_id=current_user.tenant_id,
+        tenant_id=tid,
         **body.model_dump()
     )
     db.add(c); db.commit(); db.refresh(c)
@@ -373,18 +393,20 @@ def list_setores(db: Session = Depends(get_db),
 
 @router.post("/setores", status_code=201)
 def create_setor(nome: str, db: Session = Depends(get_db),
+                 _tenant: str = "",
                  current_user=Depends(require_permission("cadastrar_epi"))):
     nome = nome.strip()
     if not nome:
         raise HTTPException(400, "Nome do setor não pode ser vazio")
+    tid = _parse_tenant(current_user, _tenant)
     existe = db.query(models_db.Setor).filter(
         models_db.Setor.nome == nome,
-        models_db.Setor.tenant_id == current_user.tenant_id,
+        models_db.Setor.tenant_id == tid,
     ).first()
     if existe:
         return {"nome": nome, "aviso": "Setor já existe"}
     s = models_db.Setor(id=str(uuid.uuid4()),
-                         tenant_id=current_user.tenant_id, nome=nome)
+                         tenant_id=tid, nome=nome)
     db.add(s); db.commit()
     return {"nome": nome}
 
@@ -413,12 +435,15 @@ def list_entregas(limit: int = 50,
 @router.post("/entregas", status_code=201)
 def create_entrega(body: schemas.EntregaCreate,
                    db: Session = Depends(get_db),
+                   _tenant: str = "",
                    current_user=Depends(require_permission("registrar_entrega"))):
+    tid = _parse_tenant(current_user, _tenant)
     entrega, erros = registrar_entrega(
         db, current_user,
         body.colaborador_id, body.epi_id,
         body.quantidade, body.observacao or "",
         body.responsavel or current_user.nome,
+        tenant_id=tid,
     )
     if erros:
         raise HTTPException(400, detail=erros)
@@ -447,6 +472,7 @@ def download_ficha(eid: str, db: Session = Depends(get_db),
 @router.post("/estoque/{epi_id}/entrada")
 def entrada_estoque(epi_id: str, body: schemas.MovCreate,
                     db: Session = Depends(get_db),
+                    _tenant: str = "",
                     current_user=Depends(require_permission("entrada_estoque"))):
     epi = db.query(models_db.EPI).filter(models_db.EPI.id == epi_id).first()
     if not epi: raise HTTPException(404, "EPI não encontrado")
@@ -455,8 +481,9 @@ def entrada_estoque(epi_id: str, body: schemas.MovCreate,
     if not body.motivo or not body.motivo.strip():
         raise HTTPException(400, "Motivo é obrigatório")
     epi.quantidade += body.quantidade
+    tid = _parse_tenant(current_user, _tenant)
     mov = models_db.Movimentacao(
-        id=str(uuid.uuid4()), tenant_id=current_user.tenant_id,
+        id=str(uuid.uuid4()), tenant_id=tid,
         tipo="entrada", epi_id=epi_id,
         quantidade=body.quantidade, motivo=body.motivo.strip(),
         documento_nf=body.documento_nf or "",
@@ -469,6 +496,7 @@ def entrada_estoque(epi_id: str, body: schemas.MovCreate,
 @router.post("/estoque/{epi_id}/ajuste")
 def ajuste_estoque(epi_id: str, body: schemas.MovCreate,
                    db: Session = Depends(get_db),
+                   _tenant: str = "",
                    current_user=Depends(require_permission("ajuste_estoque"))):
     epi = db.query(models_db.EPI).filter(models_db.EPI.id == epi_id).first()
     if not epi: raise HTTPException(404, "EPI não encontrado")
@@ -478,8 +506,9 @@ def ajuste_estoque(epi_id: str, body: schemas.MovCreate,
     if nova_qtd < 0:
         raise HTTPException(400, f"Ajuste deixaria estoque negativo ({nova_qtd}). Disponível: {epi.quantidade}")
     epi.quantidade = nova_qtd
+    tid = _parse_tenant(current_user, _tenant)
     mov = models_db.Movimentacao(
-        id=str(uuid.uuid4()), tenant_id=current_user.tenant_id,
+        id=str(uuid.uuid4()), tenant_id=tid,
         tipo="ajuste", epi_id=epi_id,
         quantidade=body.quantidade, motivo=body.motivo.strip(),
         responsavel=body.responsavel or current_user.nome,

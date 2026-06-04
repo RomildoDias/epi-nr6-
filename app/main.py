@@ -1,18 +1,19 @@
-from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
-from fastapi.staticfiles import StaticFiles
-from fastapi.responses import FileResponse, JSONResponse
+import os
+import secrets
+import logging
 from pathlib import Path
 from contextlib import asynccontextmanager
+from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse, JSONResponse
 from slowapi import _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from app.api.routes import router
 from app.db.database import init_db
 from app.core.config import settings
 from app.core.limiter import limiter
-import secrets
-import logging
 
+logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
 logger = logging.getLogger(__name__)
 
 
@@ -45,9 +46,15 @@ app = FastAPI(
 app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
+
+@app.exception_handler(Exception)
+async def global_exception_handler(request, exc):
+    logger.error(f"Erro não tratado: {exc}", exc_info=True)
+    return JSONResponse({"detail": "Erro interno do servidor"}, status_code=500)
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=[os.getenv("CORS_ORIGIN", "https://epi-nr6-1-34ib.onrender.com")],
     allow_credentials=False,
     allow_methods=["*"],
     allow_headers=["*"],

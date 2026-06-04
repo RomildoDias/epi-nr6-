@@ -1,9 +1,12 @@
 # app/db/database.py
+import logging
 from sqlalchemy import create_engine
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.pool import NullPool
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
 
 _is_sqlite = settings.DATABASE_URL.startswith("sqlite")
 
@@ -38,14 +41,8 @@ def _seed_initial_data():
 
     db = SessionLocal()
     try:
-        # ── Superadmin ────────────────────────────────────────────────────
         admin = db.query(Usuario).filter(Usuario.login == "admin").first()
-        if admin:
-            admin.senha_hash = hash_password("admin123")
-            admin.precisa_trocar_senha = True
-            db.commit()
-            print("✓ Superadmin atualizado: admin / admin123")
-        else:
+        if not admin:
             db.add(Usuario(
                 id=str(uuid.uuid4()), nome="Administrador",
                 login="admin", senha_hash=hash_password("admin123"),
@@ -53,20 +50,11 @@ def _seed_initial_data():
                 precisa_trocar_senha=True,
             ))
             db.commit()
-            print("✓ Superadmin criado: admin / admin123")
+            logger.info("Superadmin criado: admin / admin123")
 
-        # ── Tenants (estados) ─────────────────────────────────────────────
         if db.query(Tenant).count() > 0:
-            # Remove dados demo antigos e recria com nova estrutura
-            from app.db.models_db import Movimentacao, Entrega
-            db.query(Movimentacao).delete()
-            db.query(Entrega).delete()
-            db.query(EPI).delete()
-            db.query(Colaborador).delete()
-            db.query(Setor).delete()
-            db.query(Usuario).filter(Usuario.tenant_id != None).delete()
-            db.query(Tenant).delete()
-            db.commit()
+            logger.info("Dados demo já existem — seed pulado")
+            return
 
         ESTADOS = [
             ("PA", "Filial Pará"),
@@ -89,9 +77,8 @@ def _seed_initial_data():
             tenant_ids[uf] = t.id
 
         db.commit()
-        print(f"✓ {len(ESTADOS)} estados criados")
+        logger.info(f"{len(ESTADOS)} estados criados")
 
-        # ── Usuários por estado ───────────────────────────────────────────
         usuarios_demo = [
             ("Admin Pará",        "admin.pa",  "admin",    "PA"),
             ("Operador Pará",     "op.pa",     "operador", "PA"),
@@ -122,9 +109,8 @@ def _seed_initial_data():
                 precisa_trocar_senha=True,
             ))
         db.commit()
-        print("✓ Usuários demo criados (senha: senha123)")
+        logger.info("Usuários demo criados (senha: senha123)")
 
-        # ── Setores por estado ────────────────────────────────────────────
         SETORES = ["Produção", "Manutenção", "Logística", "Administrativo", "Obras"]
         for uf in tenant_ids:
             for nome_setor in SETORES:
@@ -132,7 +118,6 @@ def _seed_initial_data():
                              tenant_id=tenant_ids[uf], nome=nome_setor))
         db.commit()
 
-        # ── EPIs por estado ───────────────────────────────────────────────
         EPIS_BASE = [
             ("Capacete de Segurança",  "31148", "3M",        "Impacto",     730, 10),
             ("Luva de Raspa",          "10578", "Kalipso",   "Mãos",        180, 20),
@@ -146,28 +131,27 @@ def _seed_initial_data():
 
         hoje = date.today()
         validades = [
-            hoje + timedelta(days=365),   # OK
-            hoje - timedelta(days=10),    # VENCIDO
-            hoje + timedelta(days=20),    # ALERTA
-            hoje + timedelta(days=300),   # OK
-            hoje + timedelta(days=400),   # OK
-            hoje + timedelta(days=15),    # ALERTA
-            hoje + timedelta(days=180),   # OK
-            hoje + timedelta(days=250),   # OK (respirador vence em 90d, mas a validade CA é independente)
+            hoje + timedelta(days=365),
+            hoje - timedelta(days=10),
+            hoje + timedelta(days=20),
+            hoje + timedelta(days=300),
+            hoje + timedelta(days=400),
+            hoje + timedelta(days=15),
+            hoje + timedelta(days=180),
+            hoje + timedelta(days=250),
         ]
 
-        # Cada estado com quantidades distintas para gerar alertas variados
         qtd_override = {
-            "PA": [25, 8,  8,  20, 15, 3,  45, 18],   # alertas: luva(8<20), prot(8<15), cinto(3<5)
-            "MA": [18, 22, 12, 15, 10, 6,  30, 14],   # alertas: cinto(6>5 ok), prot(12<15)
-            "PI": [5,  30, 4,  25, 8,  2,  25, 10],   # alertas: capacete(5<10), prot(4<15), cinto(2<5), luvaB(10=ok)
-            "CE": [30, 15, 20, 25, 12, 4,  50, 20],   # alertas: cinto(4<5)
-            "RN": [12, 10, 6,  10, 18, 7,  20, 12],   # alertas: capacete(12>10 ok), luva(10<20), prot(6<15), oculos(10=ok)
-            "PB": [8,  25, 14, 18, 20, 5,  35, 22],   # alertas: capacete(8<10)
-            "PE": [22, 20, 18, 22, 14, 7,  40, 18],   # OK (tudo acima do minimo)
-            "AL": [15, 12, 10, 14, 9,  11, 28, 16],   # alertas: luva(12<20), prot(10<15), bota(9>8 ok)
-            "SE": [10, 18, 3,  8,  5,  9,  15, 8],    # alertas: prot(3<15), oculos(8<10), bota(5<8), resp(15<30), luvaB(8<10)
-            "BA": [20, 9,  15, 18, 22, 6,  55, 10],   # alertas: luva(9<20), cinto(6>5 ok)
+            "PA": [25, 8,  8,  20, 15, 3,  45, 18],
+            "MA": [18, 22, 12, 15, 10, 6,  30, 14],
+            "PI": [5,  30, 4,  25, 8,  2,  25, 10],
+            "CE": [30, 15, 20, 25, 12, 4,  50, 20],
+            "RN": [12, 10, 6,  10, 18, 7,  20, 12],
+            "PB": [8,  25, 14, 18, 20, 5,  35, 22],
+            "PE": [22, 20, 18, 22, 14, 7,  40, 18],
+            "AL": [15, 12, 10, 14, 9,  11, 28, 16],
+            "SE": [10, 18, 3,  8,  5,  9,  15, 8],
+            "BA": [20, 9,  15, 18, 22, 6,  55, 10],
         }
 
         for uf, tid in tenant_ids.items():
@@ -183,9 +167,8 @@ def _seed_initial_data():
                 )
                 db.add(epi)
         db.commit()
-        print("✓ EPIs demo criados para todos os estados")
+        logger.info("EPIs demo criados para todos os estados")
 
-        # ── Colaboradores por estado ──────────────────────────────────────
         COLAB_POR_ESTADO = {
             "PA": [
                 ("João Silva",      "PA001", "Produção",      "Operador"),
@@ -276,9 +259,8 @@ def _seed_initial_data():
                     setor=setor, funcao=funcao, ativo=True,
                 ))
         db.commit()
-        print("✓ Colaboradores demo criados para todos os estados")
+        logger.info("Colaboradores demo criados para todos os estados")
 
-        # ── Config global ─────────────────────────────────────────────────
         if db.query(Config).count() == 0:
             defaults = [
                 ("empresa_nome",     "Transpetro Norte/Nordeste"),
@@ -291,11 +273,11 @@ def _seed_initial_data():
                                tenant_id=None, chave=chave, valor=valor))
             db.commit()
 
-        print("✓ Dados demo inseridos com sucesso!")
-        print("✓ Logins: admin/admin123 | admin.{uf}/senha123 | op.{uf}/senha123 (uf = pa,ma,pi,ce,rn,pb,pe,al,se,ba)")
+        logger.info("Dados demo inseridos com sucesso")
+        logger.info("admin/admin123 | admin.{uf}/senha123 | op.{uf}/senha123")
 
     except Exception as e:
         db.rollback()
-        print(f"Seed erro (pode ser normal se dados já existem): {e}")
+        logger.warning(f"Seed ignorado (dados já existem?): {e}")
     finally:
         db.close()

@@ -359,6 +359,9 @@ function EPIsPage({tenantFilter}) {
   const [err,setErr]=useState("");
   const [loading,setLoading]=useState(true);
   const TIPOS=["Impacto","Químico","Óptico","Queda","Auditiva","Respiratória","Térmica","Soldagem","Mãos","Pés","Cabeça","Outros"];
+  const userPerms = PERMS[_user?.perfil] || new Set();
+  const podeEditar = userPerms.has("editar_epi");
+  const podeInativar = userPerms.has("inativar_epi");
 
   const load = useCallback(async()=>{
     setLoading(true);
@@ -367,7 +370,7 @@ function EPIsPage({tenantFilter}) {
     setLoading(false);
   },[busca,tenantFilter]);
 
-  useEffect(()=>{ load(); },[load]);
+  useEffect(()=>{ const t = setTimeout(()=>load(), 300); return ()=>clearTimeout(t); },[busca,tenantFilter]);
 
   async function salvar() {
     setErr("");
@@ -380,7 +383,8 @@ function EPIsPage({tenantFilter}) {
 
   async function inativar(id) {
     if(!confirm("Inativar este EPI?")) return;
-    await api("DELETE",`/epis/${id}`); load();
+    try { await api("DELETE",`/epis/${id}`); load(); }
+    catch(ex) { setErr(ex.message); }
   }
 
   return (
@@ -388,7 +392,7 @@ function EPIsPage({tenantFilter}) {
       <div style={{display:"flex",gap:8,marginBottom:16}}>
         <input style={{maxWidth:300}} placeholder="Buscar por nome, CA ou fabricante..."
           value={busca} onChange={e=>setBusca(e.target.value)}/>
-        <button className="btn btn-success" onClick={()=>{setForm({vida_util_dias:365,estoque_minimo:5,quantidade:0,tipo_protecao:TIPOS[0]});setErr("");setModal("novo");}}>➕ Novo EPI</button>
+        {podeEditar && <button className="btn btn-success" onClick={()=>{setForm({vida_util_dias:365,estoque_minimo:5,quantidade:0,tipo_protecao:TIPOS[0]});setErr("");setModal("novo");}}>➕ Novo EPI</button>}
       </div>
       {loading ? <p style={{fontSize:14,color:"var(--muted)"}}>Carregando...</p> : (
       <div className="card">
@@ -400,10 +404,10 @@ function EPIsPage({tenantFilter}) {
               <td>{e.tipo_protecao}</td><td>{e.quantidade}</td><td>{e.estoque_minimo}</td>
               <td>{fmt_date(e.validade_ca)}</td>
               <td><StatusBadge status={e.status}/></td>
-              <td style={{display:"flex",gap:4}}>
-                <button className="btn btn-secondary btn-sm" onClick={()=>{setForm({...e,validade_ca:e.validade_ca?.slice(0,10)});setErr("");setModal(e);}}>✎</button>
-                <button className="btn btn-danger btn-sm" onClick={()=>inativar(e.id)}>✕</button>
-              </td>
+              {(podeEditar || podeInativar) && <td style={{display:"flex",gap:4}}>
+                {podeEditar && <button className="btn btn-secondary btn-sm" onClick={()=>{setForm({...e,validade_ca:e.validade_ca?.slice(0,10)});setErr("");setModal(e);}}>✎</button>}
+                {podeInativar && <button className="btn btn-danger btn-sm" onClick={()=>inativar(e.id)}>✕</button>}
+              </td>}
             </tr>
           ))}</tbody>
         </table>
@@ -659,7 +663,8 @@ function ColaboradoresPage({tenantFilter}) {
 
   async function inativar(id, nome) {
     if(!confirm(`Inativar colaborador '${nome}'?`)) return;
-    await api("DELETE",`/colaboradores/${id}`); load();
+    try { await api("DELETE",`/colaboradores/${id}`); load(); }
+    catch(ex){ setErr(ex.message); }
   }
 
   async function addSetor() {
@@ -797,11 +802,14 @@ function RelatoriosPage() {
 
 // ── ADMIN ─────────────────────────────────────────────────────────────────
 function AdminPage() {
-  const [tab,setTab]=useState("tenants");
+  const userPerms = PERMS[_user?.perfil] || new Set();
+  const podeTenants = userPerms.has("gerenciar_tenants");
+  const tabs = podeTenants ? ["tenants","usuarios"] : ["usuarios"];
+  const [tab,setTab]=useState(tabs[0]);
   return (
     <div>
       <div style={{display:"flex",gap:8,marginBottom:16}}>
-        {["tenants","usuarios"].map(t=>(
+        {tabs.map(t=>(
           <button key={t} className={`btn ${tab===t?"btn-primary":"btn-secondary"}`} onClick={()=>setTab(t)}>
             {t==="tenants"?"🗺 Estados / Tenants":"👤 Usuários"}
           </button>
@@ -971,22 +979,24 @@ function UsuariosTab() {
 function ConfigPage() {
   const [cfg,setCfg]=useState({});
   const [ok,setOk]=useState("");
+  const userPerms = PERMS[_user?.perfil] || new Set();
+  const podeEditar = userPerms.has("editar_config");
   useEffect(()=>{ api("GET","/config").then(d=>d&&setCfg(d)); },[]);
   async function salvar() {
     try { await api("PUT","/config",cfg); setOk("✓ Salvo!"); setTimeout(()=>setOk(""),3000); }
-    catch(ex){ setOk("Erro: "+ex.message); }
+    catch(ex){ setOk(ex.message); }
   }
   return (
     <div className="card" style={{maxWidth:520}}>
       <div className="card-bar" style={{background:"var(--blue)"}}/>
       <div className="card-body">
         <div className="card-title">Configurações</div>
-        <label>Nome da empresa</label><input value={cfg.empresa_nome||""} onChange={e=>setCfg({...cfg,empresa_nome:e.target.value})}/>
-        <label>CNPJ</label><input value={cfg.empresa_cnpj||""} onChange={e=>setCfg({...cfg,empresa_cnpj:e.target.value})}/>
-        <label>Endereço</label><input value={cfg.empresa_endereco||""} onChange={e=>setCfg({...cfg,empresa_endereco:e.target.value})}/>
-        <label>Dias de alerta CA a vencer</label><input type="number" value={cfg.dias_alerta_ca||30} onChange={e=>setCfg({...cfg,dias_alerta_ca:e.target.value})}/>
-        {ok && <div style={{marginTop:8,fontSize:11,color:ok.startsWith("Erro")?"var(--red)":"var(--green)"}}>{ok}</div>}
-        <div style={{marginTop:16}}><button className="btn btn-success" onClick={salvar}>✔ Salvar</button></div>
+        <label>Nome da empresa</label><input value={cfg.empresa_nome||""} onChange={e=>setCfg({...cfg,empresa_nome:e.target.value})} disabled={!podeEditar}/>
+        <label>CNPJ</label><input value={cfg.empresa_cnpj||""} onChange={e=>setCfg({...cfg,empresa_cnpj:e.target.value})} disabled={!podeEditar}/>
+        <label>Endereço</label><input value={cfg.empresa_endereco||""} onChange={e=>setCfg({...cfg,empresa_endereco:e.target.value})} disabled={!podeEditar}/>
+        <label>Dias de alerta CA a vencer</label><input type="number" value={cfg.dias_alerta_ca||30} onChange={e=>setCfg({...cfg,dias_alerta_ca:e.target.value})} disabled={!podeEditar}/>
+        {ok && <div style={{marginTop:8,fontSize:11,color:ok.startsWith("✓")?"var(--green)":"var(--red)"}}>{ok}</div>}
+        {podeEditar && <div style={{marginTop:16}}><button className="btn btn-success" onClick={salvar}>✔ Salvar</button></div>}
       </div>
     </div>
   );
