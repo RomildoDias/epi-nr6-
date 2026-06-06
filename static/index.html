@@ -439,11 +439,34 @@ function EPIsPage({tenantFilter}) {
                 <div><label>Estoque Mínimo *</label><input type="number" value={form.estoque_minimo||5} onChange={e=>setForm({...form,estoque_minimo:+e.target.value})}/></div>
                 <div><label>Quantidade *</label><input type="number" value={form.quantidade||0} onChange={e=>setForm({...form,quantidade:+e.target.value})}/></div>
               </div>
+              <div className="form-row" style={{marginTop:12}}>
+                <label style={{fontSize:12,display:"flex",alignItems:"center",gap:6}}>
+                  <input type="checkbox" checked={form.consentimento_dados||false}
+                    onChange={e=>setForm({...form,consentimento_dados:e.target.checked})}
+                    disabled={modal!=="novo"}
+                    style={{width:16,height:16}}/>
+                  <span>Autorizo o tratamento dos meus dados pessoais conforme a
+                    <a href="#" onClick={e=>{e.preventDefault();alert(
+                      "AVISO DE PRIVACIDADE (LGPD)\n\n"+
+                      "Controlador: Transpetro Norte/Nordeste\n"+
+                      "CNPJ: 00.000.000/0001-00\n\n"+
+                      "Finalidade: Controle de entrega de EPIs e gestão de segurança do trabalho (NR-6)\n\n"+
+                      "Dados coletados: nome completo, matrícula, setor, função, registro de entregas de EPI\n\n"+
+                      "Base legal: Art. 7º, II (obrigação legal) e Art. 7º, V (execução de contrato)\n\n"+
+                      "Você pode solicitar acesso, correção ou exclusão dos dados ao administrador."
+                    )}}>aviso de privacidade</a></span>
+                </label>
+                {modal!=="novo" && form.data_consentimento && (
+                  <span style={{fontSize:11,color:"var(--muted)"}}>
+                    ✓ Consentido em {new Date(form.data_consentimento).toLocaleString("pt-BR")}
+                  </span>
+                )}
+              </div>
               {err && <div className="err">⚠ {err}</div>}
             </div>
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={()=>setModal(null)}>Cancelar</button>
-              <button className="btn btn-success" onClick={salvar}>✔ Salvar EPI</button>
+              <button className="btn btn-success" onClick={salvar}>✔ Salvar</button>
             </div>
           </div>
         </div>
@@ -708,6 +731,7 @@ function ColaboradoresPage({tenantFilter}) {
     if(!form.matricula?.trim()) { setErr("Matrícula obrigatória."); return; }
     if(!form.setor?.trim())     { setErr("Setor obrigatório."); return; }
     if(!form.funcao?.trim())    { setErr("Função obrigatória."); return; }
+    if(modal==="novo" && !form.consentimento_dados) { setErr("É necessário aceitar o aviso de privacidade (LGPD)."); return; }
     try {
       if(modal==="novo") await api("POST","/colaboradores",form);
       else await api("PUT",`/colaboradores/${modal.id}`,form);

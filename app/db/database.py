@@ -36,7 +36,7 @@ def init_db():
 def _seed_initial_data():
     from app.db.models_db import Usuario, Tenant, Config, EPI, Colaborador, Setor
     from app.core.security import hash_password
-    from datetime import date, timedelta
+    from datetime import date, timedelta, datetime
     import uuid
 
     db = SessionLocal()
@@ -257,6 +257,8 @@ def _seed_initial_data():
                     id=str(uuid.uuid4()), tenant_id=tid,
                     nome=nome, matricula=mat,
                     setor=setor, funcao=funcao, ativo=True,
+                    consentimento_dados=True,
+                    data_consentimento=datetime.utcnow(),
                 ))
         db.commit()
         logger.info("Colaboradores demo criados para todos os estados")
@@ -267,6 +269,7 @@ def _seed_initial_data():
                 ("empresa_cnpj",     "00.000.000/0001-00"),
                 ("empresa_endereco", "Av. Presidente Vargas, 328 - Belém/PA"),
                 ("dias_alerta_ca",   "30"),
+                ("retencao_dias",    "1825"),
             ]
             for chave, valor in defaults:
                 db.add(Config(id=str(uuid.uuid4()),

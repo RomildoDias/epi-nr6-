@@ -116,6 +116,7 @@ class ColaboradorCreate(BaseModel):
     matricula: str
     setor: str
     funcao: str
+    consentimento_dados: bool = False
 
 class ColaboradorOut(BaseModel):
     id: str
@@ -124,7 +125,37 @@ class ColaboradorOut(BaseModel):
     setor: str
     funcao: str
     ativo: bool
+    consentimento_dados: bool = False
+    data_consentimento: Optional[datetime] = None
     model_config = {"from_attributes": True}
+
+class ColaboradorUpdate(BaseModel):
+    nome: Optional[str] = None
+    matricula: Optional[str] = None
+    setor: Optional[str] = None
+    funcao: Optional[str] = None
+    consentimento_dados: Optional[bool] = None
+
+
+# ── DADOS PESSOAIS (LGPD) ──────────────────────────────────────────────────
+class DadosPessoaisOut(BaseModel):
+    id: str
+    nome: str
+    matricula: str
+    setor: str
+    funcao: str
+    ativo: bool
+    consentimento_dados: bool
+    data_consentimento: Optional[datetime]
+    created_at: datetime
+    quant_entregas_realizadas: int = 0
+    model_config = {"from_attributes": True}
+
+class DadosPessoaisUpdate(BaseModel):
+    nome: Optional[str] = None
+    matricula: Optional[str] = None
+    setor: Optional[str] = None
+    funcao: Optional[str] = None
 
 
 # ── ENTREGA ─────────────────────────────────────────────────────────────────
@@ -182,6 +213,7 @@ class ConfigUpdate(BaseModel):
     empresa_cnpj: Optional[str] = None
     empresa_endereco: Optional[str] = None
     dias_alerta_ca: Optional[int] = None
+    retencao_dias: Optional[int] = None
 
 
 # ── DASHBOARD ────────────────────────────────────────────────────────────────

@@ -20,8 +20,14 @@ logger = logging.getLogger(__name__)
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     if not settings.SECRET_KEY or len(settings.SECRET_KEY) < 16:
-        settings.SECRET_KEY = secrets.token_hex(32)
-        logger.warning("SECRET_KEY gerada automaticamente")
+        key_file = settings.DATA_DIR / ".secret_key"
+        if key_file.exists():
+            settings.SECRET_KEY = key_file.read_text().strip()
+            logger.info("SECRET_KEY carregada do disco persistente")
+        else:
+            settings.SECRET_KEY = secrets.token_hex(32)
+            key_file.write_text(settings.SECRET_KEY)
+            logger.info("SECRET_KEY gerada e persistida em disco")
     # Cria pastas necessárias
     for d in [settings.DATA_DIR, settings.FICHAS_DIR,
               settings.QRCODES_DIR, settings.DATA_DIR / "relatorios"]:
@@ -56,8 +62,8 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=[os.getenv("CORS_ORIGIN", "https://epi-nr6-1-34ib.onrender.com")],
     allow_credentials=False,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type"],
 )
 
 app.include_router(router, prefix="/api")
