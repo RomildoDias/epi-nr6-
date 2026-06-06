@@ -182,7 +182,7 @@ class EntregaOut(BaseModel):
 
 # ── MOVIMENTACAO ─────────────────────────────────────────────────────────────
 class MovCreate(BaseModel):
-    epi_id: str
+    epi_id: Optional[str] = None
     quantidade: int
     motivo: str
     documento_nf: Optional[str] = None
