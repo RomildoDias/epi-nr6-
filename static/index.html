@@ -568,6 +568,8 @@ function EstoquePage({tenantFilter}) {
   const userPermsEst = PERMS[_user?.perfil] || new Set();
   const podeEntrada = userPermsEst.has("entrada_estoque");
   const podeAjuste = userPermsEst.has("ajuste_estoque");
+  const podeEditarEpi = userPermsEst.has("editar_epi");
+  const TIPOS_EST=["Impacto","Químico","Óptico","Queda","Auditiva","Respiratória","Térmica","Soldagem","Mãos","Pés","Cabeça","Outros"];
 
   const load = ()=>{ setLoading(true); api("GET","/epis").then(d=>{ if(d)setEpis(d); setLoading(false); }); };
   useEffect(()=>{ load(); },[tenantFilter]);
@@ -577,6 +579,14 @@ function EstoquePage({tenantFilter}) {
     try {
       const path = modal.tipo==="entrada" ? `/estoque/${modal.epi.id}/entrada` : `/estoque/${modal.epi.id}/ajuste`;
       await api("POST", path, form);
+      setModal(null); load();
+    } catch(ex){ setErr(ex.message); }
+  }
+
+  async function salvarEPI() {
+    setErr("");
+    try {
+      await api("PUT",`/epis/${modal.epi.id}`,form);
       setModal(null); load();
     } catch(ex){ setErr(ex.message); }
   }
@@ -594,6 +604,7 @@ function EstoquePage({tenantFilter}) {
               <td>{fmt_date(e.validade_ca)}</td>
               <td><StatusBadge status={e.status}/></td>
               <td style={{display:"flex",gap:4}}>
+                {podeEditarEpi && <button className="btn btn-secondary btn-sm" onClick={()=>{setForm({...e,validade_ca:e.validade_ca?.slice(0,10)});setErr("");setModal({tipo:"editar",epi:e});}}>✎</button>}
                 {podeEntrada && <button className="btn btn-success btn-sm" onClick={()=>{setForm({quantidade:1});setErr("");setModal({tipo:"entrada",epi:e});}}>📥 Entrada</button>}
                 {podeAjuste && <button className="btn btn-warning btn-sm" onClick={()=>{setForm({quantidade:0});setErr("");setModal({tipo:"ajuste",epi:e});}}>🔧 Ajuste</button>}
               </td>
@@ -601,7 +612,7 @@ function EstoquePage({tenantFilter}) {
           ))}</tbody>
         </table>
       </div>)}
-      {modal && (
+      {modal && modal.tipo !== "editar" && (
         <div className="modal-bg" onClick={e=>e.target===e.currentTarget&&setModal(null)}>
           <div className="modal">
             <div className="modal-header" style={{background:modal.tipo==="entrada"?"var(--green)":"var(--amber)"}}>
@@ -626,6 +637,41 @@ function EstoquePage({tenantFilter}) {
             <div className="modal-footer">
               <button className="btn btn-secondary" onClick={()=>setModal(null)}>Cancelar</button>
               <button className={`btn ${modal.tipo==="entrada"?"btn-success":"btn-warning"}`} onClick={registrar}>✔ Registrar</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {modal && modal.tipo === "editar" && (
+        <div className="modal-bg" onClick={e=>e.target===e.currentTarget&&setModal(null)}>
+          <div className="modal">
+            <div className="modal-header"><h3>Editar EPI</h3>
+              <button className="modal-close" onClick={()=>setModal(null)}>✕</button></div>
+            <div className="modal-body">
+              <div className="form-row">
+                <div><label>Nome *</label><input value={form.nome||""} onChange={e=>setForm({...form,nome:e.target.value})}/></div>
+                <div><label>CA * (só dígitos)</label><input value={form.ca||""} onChange={e=>setForm({...form,ca:e.target.value})}/></div>
+              </div>
+              <div className="form-row">
+                <div><label>Fabricante *</label><input value={form.fabricante||""} onChange={e=>setForm({...form,fabricante:e.target.value})}/></div>
+                <div><label>Tipo de Proteção *</label>
+                  <select value={form.tipo_protecao||TIPOS_EST[0]} onChange={e=>setForm({...form,tipo_protecao:e.target.value})}>
+                    {TIPOS_EST.map(t=><option key={t}>{t}</option>)}
+                  </select>
+                </div>
+              </div>
+              <div className="form-row">
+                <div><label>Vida Útil (dias) *</label><input type="number" value={form.vida_util_dias||365} onChange={e=>setForm({...form,vida_util_dias:+e.target.value})}/></div>
+                <div><label>Validade CA *</label><input type="date" value={form.validade_ca||""} onChange={e=>setForm({...form,validade_ca:e.target.value})}/></div>
+              </div>
+              <div className="form-row">
+                <div><label>Estoque Mínimo *</label><input type="number" value={form.estoque_minimo||5} onChange={e=>setForm({...form,estoque_minimo:+e.target.value})}/></div>
+                <div><label>Quantidade *</label><input type="number" value={form.quantidade||0} onChange={e=>setForm({...form,quantidade:+e.target.value})}/></div>
+              </div>
+              {err && <div className="err">⚠ {err}</div>}
+            </div>
+            <div className="modal-footer">
+              <button className="btn btn-secondary" onClick={()=>setModal(null)}>Cancelar</button>
+              <button className="btn btn-success" onClick={salvarEPI}>✔ Salvar EPI</button>
             </div>
           </div>
         </div>
