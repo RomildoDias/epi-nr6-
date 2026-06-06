@@ -360,6 +360,7 @@ function EPIsPage({tenantFilter}) {
   const [loading,setLoading]=useState(true);
   const TIPOS=["Impacto","Químico","Óptico","Queda","Auditiva","Respiratória","Térmica","Soldagem","Mãos","Pés","Cabeça","Outros"];
   const userPerms = PERMS[_user?.perfil] || new Set();
+  const podeCriar = userPerms.has("cadastrar_epi");
   const podeEditar = userPerms.has("editar_epi");
   const podeInativar = userPerms.has("inativar_epi");
 
@@ -392,7 +393,7 @@ function EPIsPage({tenantFilter}) {
       <div style={{display:"flex",gap:8,marginBottom:16}}>
         <input style={{maxWidth:300}} placeholder="Buscar por nome, CA ou fabricante..."
           value={busca} onChange={e=>setBusca(e.target.value)}/>
-        {podeEditar && <button className="btn btn-success" onClick={()=>{setForm({vida_util_dias:365,estoque_minimo:5,quantidade:0,tipo_protecao:TIPOS[0]});setErr("");setModal("novo");}}>➕ Novo EPI</button>}
+        {podeCriar && <button className="btn btn-success" onClick={()=>{setForm({vida_util_dias:365,estoque_minimo:5,quantidade:0,tipo_protecao:TIPOS[0]});setErr("");setModal("novo");}}>➕ Novo EPI</button>}
       </div>
       {loading ? <p style={{fontSize:14,color:"var(--muted)"}}>Carregando...</p> : (
       <div className="card">
@@ -461,6 +462,8 @@ function EntregasPage({tenantFilter}) {
   const [err,setErr]=useState("");
   const [epiSel,setEpiSel]=useState(null);
   const [loading,setLoading]=useState(true);
+  const userPermsEnt = PERMS[_user?.perfil] || new Set();
+  const podeRegistrar = userPermsEnt.has("registrar_entrega");
 
   useEffect(()=>{
     setLoading(true);
@@ -497,9 +500,9 @@ function EntregasPage({tenantFilter}) {
   return (
     <div>
       <div style={{display:"flex",justifyContent:"flex-end",marginBottom:16}}>
-        <button className="btn btn-success" onClick={()=>{setForm({quantidade:1});setErr("");setEpiSel(null);setModal(true);}}>
+        {podeRegistrar && <button className="btn btn-success" onClick={()=>{setForm({quantidade:1});setErr("");setEpiSel(null);setModal(true);}}>
           ➕ Registrar Entrega
-        </button>
+        </button>}
       </div>
       {loading ? <p style={{fontSize:14,color:"var(--muted)"}}>Carregando...</p> : (
       <div className="card">
@@ -562,6 +565,9 @@ function EstoquePage({tenantFilter}) {
   const [form,setForm]=useState({});
   const [err,setErr]=useState("");
   const [loading,setLoading]=useState(true);
+  const userPermsEst = PERMS[_user?.perfil] || new Set();
+  const podeEntrada = userPermsEst.has("entrada_estoque");
+  const podeAjuste = userPermsEst.has("ajuste_estoque");
 
   const load = ()=>{ setLoading(true); api("GET","/epis").then(d=>{ if(d)setEpis(d); setLoading(false); }); };
   useEffect(()=>{ load(); },[tenantFilter]);
@@ -588,8 +594,8 @@ function EstoquePage({tenantFilter}) {
               <td>{fmt_date(e.validade_ca)}</td>
               <td><StatusBadge status={e.status}/></td>
               <td style={{display:"flex",gap:4}}>
-                <button className="btn btn-success btn-sm" onClick={()=>{setForm({quantidade:1});setErr("");setModal({tipo:"entrada",epi:e});}}>📥 Entrada</button>
-                <button className="btn btn-warning btn-sm" onClick={()=>{setForm({quantidade:0});setErr("");setModal({tipo:"ajuste",epi:e});}}>🔧 Ajuste</button>
+                {podeEntrada && <button className="btn btn-success btn-sm" onClick={()=>{setForm({quantidade:1});setErr("");setModal({tipo:"entrada",epi:e});}}>📥 Entrada</button>}
+                {podeAjuste && <button className="btn btn-warning btn-sm" onClick={()=>{setForm({quantidade:0});setErr("");setModal({tipo:"ajuste",epi:e});}}>🔧 Ajuste</button>}
               </td>
             </tr>
           ))}</tbody>
@@ -638,6 +644,8 @@ function ColaboradoresPage({tenantFilter}) {
   const [err, setErr]         = useState("");
   const [novoSetor, setNovoSetor] = useState("");
   const [loading, setLoading] = useState(true);
+  const userPermsColab = PERMS[_user?.perfil] || new Set();
+  const podeCriarColab = userPermsColab.has("cadastrar_epi");
 
   const load = ()=>{
     setLoading(true);
@@ -681,10 +689,10 @@ function ColaboradoresPage({tenantFilter}) {
         <span style={{fontSize:11,color:"var(--muted)",flex:1}}>
           {colabs.length} colaborador(es) cadastrado(s)
         </span>
-        <button className="btn btn-success"
+        {podeCriarColab && <button className="btn btn-success"
           onClick={()=>{setForm({});setErr("");setModal("novo");}}>
           ➕ Novo Colaborador
-        </button>
+        </button>}
       </div>
       {loading ? <p style={{fontSize:14,color:"var(--muted)"}}>Carregando...</p> : (
       <div className="card">
@@ -701,12 +709,12 @@ function ColaboradoresPage({tenantFilter}) {
               <td><span className={`badge ${c.ativo?"badge-ok":"badge-danger"}`}>
                 {c.ativo?"✓ Ativo":"✕ Inativo"}
               </span></td>
-              <td style={{display:"flex",gap:4}}>
+              {podeCriarColab && <td style={{display:"flex",gap:4}}>
                 <button className="btn btn-secondary btn-sm"
                   onClick={()=>{setForm({...c});setErr("");setModal(c);}}>✎</button>
                 <button className="btn btn-danger btn-sm"
                   onClick={()=>inativar(c.id,c.nome)}>✕</button>
-              </td>
+              </td>}
             </tr>
           ))}</tbody>
         </table>
@@ -1014,9 +1022,9 @@ const PAGES = {
   config:         {label:"◌  Configurações",   perm:"ver_config",          comp:ConfigPage},
 };
 const PERMS = {
-  superadmin:   new Set(Object.values(PAGES).map(p=>p.perm)),
-  admin:        new Set(["ver_dashboard","cadastrar_epi","registrar_entrega","entrada_estoque","ver_relatorios","gerenciar_usuarios","ver_config"]),
-  operador:     new Set(["ver_dashboard","cadastrar_epi","registrar_entrega","entrada_estoque","ver_relatorios"]),
+  superadmin:   new Set([...Object.values(PAGES).map(p=>p.perm),"editar_epi","inativar_epi","ajuste_estoque","editar_config","backup"]),
+  admin:        new Set(["ver_dashboard","cadastrar_epi","editar_epi","inativar_epi","registrar_entrega","entrada_estoque","ajuste_estoque","ver_relatorios","gerenciar_usuarios","ver_config","editar_config","backup"]),
+  operador:     new Set(["ver_dashboard","cadastrar_epi","editar_epi","registrar_entrega","entrada_estoque","ajuste_estoque","ver_relatorios"]),
   visualizador: new Set(["ver_dashboard","ver_relatorios"]),
 };
 const PAGE_TITLES = {
