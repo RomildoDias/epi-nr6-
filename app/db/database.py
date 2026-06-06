@@ -36,24 +36,30 @@ def init_db():
 
 def _run_migrations():
     """Aplica alterações em tabelas existentes (create_all não adiciona colunas)."""
+    from sqlalchemy import text as _text
     import sqlalchemy as sa
     try:
         inspector = sa.inspect(engine)
-        cols = [c["name"] for c in inspector.get_columns("colaboradores")]
+        try:
+            cols = [c["name"] for c in inspector.get_columns("colaboradores")]
+        except Exception:
+            return  # tabela ainda não existe (primeiro deploy)
         logger.info(f"Colunas atuais de colaboradores: {cols}")
-        with engine.connect() as conn:
-            if "consentimento_dados" not in cols:
-                logger.info("Adicionando coluna consentimento_dados...")
-                conn.execute(sa.text(
-                    "ALTER TABLE colaboradores ADD COLUMN consentimento_dados BOOLEAN DEFAULT 0"
-                ))
-            if "data_consentimento" not in cols:
-                logger.info("Adicionando coluna data_consentimento...")
-                conn.execute(sa.text(
-                    "ALTER TABLE colaboradores ADD COLUMN data_consentimento TIMESTAMP"
-                ))
-            conn.commit()
-        logger.info("✓ Migrações aplicadas com sucesso")
+        db = SessionLocal()
+        try:
+            for col, tipo in [("consentimento_dados", "BOOLEAN DEFAULT FALSE"),
+                              ("data_consentimento", "TIMESTAMP")]:
+                if col not in cols:
+                    logger.info(f"Adicionando coluna {col}...")
+                    try:
+                        db.execute(_text(f"ALTER TABLE colaboradores ADD COLUMN {col} {tipo}"))
+                        db.commit()
+                    except Exception as e:
+                        logger.warning(f"Coluna {col} já existe ou erro: {e}")
+                        db.rollback()
+            logger.info("✓ Migrações aplicadas com sucesso")
+        finally:
+            db.close()
     except Exception as e:
         logger.warning(f"Migrações ignoradas: {e}")
 
