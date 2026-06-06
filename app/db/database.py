@@ -37,26 +37,25 @@ def init_db():
 def _run_migrations():
     """Aplica alterações em tabelas existentes (create_all não adiciona colunas)."""
     import sqlalchemy as sa
-    db = SessionLocal()
     try:
-        conn = db.connection()
         inspector = sa.inspect(engine)
         cols = [c["name"] for c in inspector.get_columns("colaboradores")]
-        if "consentimento_dados" not in cols:
-            conn.execute(sa.text(
-                "ALTER TABLE colaboradores ADD COLUMN consentimento_dados BOOLEAN DEFAULT 0"
-            ))
-        if "data_consentimento" not in cols:
-            conn.execute(sa.text(
-                "ALTER TABLE colaboradores ADD COLUMN data_consentimento TIMESTAMP"
-            ))
-        db.commit()
+        logger.info(f"Colunas atuais de colaboradores: {cols}")
+        with engine.connect() as conn:
+            if "consentimento_dados" not in cols:
+                logger.info("Adicionando coluna consentimento_dados...")
+                conn.execute(sa.text(
+                    "ALTER TABLE colaboradores ADD COLUMN consentimento_dados BOOLEAN DEFAULT 0"
+                ))
+            if "data_consentimento" not in cols:
+                logger.info("Adicionando coluna data_consentimento...")
+                conn.execute(sa.text(
+                    "ALTER TABLE colaboradores ADD COLUMN data_consentimento TIMESTAMP"
+                ))
+            conn.commit()
         logger.info("✓ Migrações aplicadas com sucesso")
     except Exception as e:
-        logger.warning(f"Migrações: {e} (ignorado — provavelmente já existem)")
-        db.rollback()
-    finally:
-        db.close()
+        logger.warning(f"Migrações ignoradas: {e}")
 
 
 def _seed_initial_data():
