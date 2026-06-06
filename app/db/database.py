@@ -30,7 +30,33 @@ def get_db():
 def init_db():
     from app.db import models_db  # noqa
     Base.metadata.create_all(bind=engine)
+    _run_migrations()
     _seed_initial_data()
+
+
+def _run_migrations():
+    """Aplica alterações em tabelas existentes (create_all não adiciona colunas)."""
+    import sqlalchemy as sa
+    db = SessionLocal()
+    try:
+        conn = db.connection()
+        inspector = sa.inspect(engine)
+        cols = [c["name"] for c in inspector.get_columns("colaboradores")]
+        if "consentimento_dados" not in cols:
+            conn.execute(sa.text(
+                "ALTER TABLE colaboradores ADD COLUMN consentimento_dados BOOLEAN DEFAULT 0"
+            ))
+        if "data_consentimento" not in cols:
+            conn.execute(sa.text(
+                "ALTER TABLE colaboradores ADD COLUMN data_consentimento TIMESTAMP"
+            ))
+        db.commit()
+        logger.info("✓ Migrações aplicadas com sucesso")
+    except Exception as e:
+        logger.warning(f"Migrações: {e} (ignorado — provavelmente já existem)")
+        db.rollback()
+    finally:
+        db.close()
 
 
 def _seed_initial_data():
