@@ -82,8 +82,6 @@ class Colaborador(Base):
     funcao     = Column(String(80),  nullable=False)
     ativo      = Column(Boolean,     default=True)
     created_at = Column(DateTime,    default=datetime.utcnow)
-    consentimento_dados   = Column(Boolean,  default=False)
-    data_consentimento    = Column(DateTime, nullable=True)
 
     tenant   = relationship("Tenant",  back_populates="colaboradores", lazy="select")
     entregas = relationship("Entrega", back_populates="colaborador",   lazy="select")

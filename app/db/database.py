@@ -30,44 +30,13 @@ def get_db():
 def init_db():
     from app.db import models_db  # noqa
     Base.metadata.create_all(bind=engine)
-    _run_migrations()
     _seed_initial_data()
-
-
-def _run_migrations():
-    """Aplica alterações em tabelas existentes (create_all não adiciona colunas)."""
-    from sqlalchemy import text as _text
-    import sqlalchemy as sa
-    try:
-        inspector = sa.inspect(engine)
-        try:
-            cols = [c["name"] for c in inspector.get_columns("colaboradores")]
-        except Exception:
-            return  # tabela ainda não existe (primeiro deploy)
-        logger.info(f"Colunas atuais de colaboradores: {cols}")
-        db = SessionLocal()
-        try:
-            for col, tipo in [("consentimento_dados", "BOOLEAN DEFAULT FALSE"),
-                              ("data_consentimento", "TIMESTAMP")]:
-                if col not in cols:
-                    logger.info(f"Adicionando coluna {col}...")
-                    try:
-                        db.execute(_text(f"ALTER TABLE colaboradores ADD COLUMN {col} {tipo}"))
-                        db.commit()
-                    except Exception as e:
-                        logger.warning(f"Coluna {col} já existe ou erro: {e}")
-                        db.rollback()
-            logger.info("✓ Migrações aplicadas com sucesso")
-        finally:
-            db.close()
-    except Exception as e:
-        logger.warning(f"Migrações ignoradas: {e}")
 
 
 def _seed_initial_data():
     from app.db.models_db import Usuario, Tenant, Config, EPI, Colaborador, Setor
     from app.core.security import hash_password
-    from datetime import date, timedelta, datetime
+    from datetime import date, timedelta
     import uuid
 
     db = SessionLocal()
@@ -288,8 +257,6 @@ def _seed_initial_data():
                     id=str(uuid.uuid4()), tenant_id=tid,
                     nome=nome, matricula=mat,
                     setor=setor, funcao=funcao, ativo=True,
-                    consentimento_dados=True,
-                    data_consentimento=datetime.utcnow(),
                 ))
         db.commit()
         logger.info("Colaboradores demo criados para todos os estados")
@@ -300,7 +267,6 @@ def _seed_initial_data():
                 ("empresa_cnpj",     "00.000.000/0001-00"),
                 ("empresa_endereco", "Av. Presidente Vargas, 328 - Belém/PA"),
                 ("dias_alerta_ca",   "30"),
-                ("retencao_dias",    "1825"),
             ]
             for chave, valor in defaults:
                 db.add(Config(id=str(uuid.uuid4()),

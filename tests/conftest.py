@@ -21,7 +21,7 @@ _ = [Usuario, Tenant, Config, EPI, Colaborador, Setor]
 
 
 def _seed_test_data():
-    from datetime import datetime, date, timedelta
+    from datetime import date, timedelta
     import uuid
     from app.core.security import hash_password
 
@@ -58,13 +58,11 @@ def _seed_test_data():
             id="colab-tf-1", tenant_id=t1.id,
             nome="Colaborador TF 1", matricula="TF001",
             setor="Producao", funcao="Operador", ativo=True,
-            consentimento_dados=True, data_consentimento=datetime.utcnow(),
         ))
         db.add(Colaborador(
             id="colab-ts-1", tenant_id=t2.id,
             nome="Colaborador TS 1", matricula="TS001",
             setor="Producao", funcao="Operador", ativo=True,
-            consentimento_dados=True, data_consentimento=datetime.utcnow(),
         ))
 
         hoje = date.today()
@@ -82,8 +80,6 @@ def _seed_test_data():
             Setor(id=str(uuid.uuid4()), tenant_id=t2.id, nome="Producao"),
         ])
 
-        db.add(Config(id=str(uuid.uuid4()), tenant_id=None,
-                       chave="retencao_dias", valor="1825"))
         db.add(Config(id=str(uuid.uuid4()), tenant_id=None,
                        chave="empresa_nome", valor="Empresa Teste"))
 

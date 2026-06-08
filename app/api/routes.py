@@ -338,8 +338,6 @@ def create_colaborador(body: schemas.ColaboradorCreate,
                        _tenant: str = "",
                        current_user=Depends(require_permission("cadastrar_epi"))):
     tid = _parse_tenant(current_user, _tenant)
-    if not body.consentimento_dados:
-        raise HTTPException(400, "É necessário consentir com o tratamento dos dados pessoais (LGPD)")
     existe = db.query(models_db.Colaborador).filter(
         models_db.Colaborador.matricula == body.matricula,
         models_db.Colaborador.tenant_id == tid,
@@ -348,7 +346,6 @@ def create_colaborador(body: schemas.ColaboradorCreate,
     if existe:
         raise HTTPException(400, f"Matrícula '{body.matricula}' já cadastrada neste estado")
     dados = body.model_dump()
-    dados["data_consentimento"] = datetime.utcnow()
     c = models_db.Colaborador(
         id=str(uuid.uuid4()),
         tenant_id=tid,
@@ -371,10 +368,6 @@ def update_colaborador(cid: str, body: schemas.ColaboradorUpdate,
     if body.matricula is not None: c.matricula = body.matricula
     if body.setor is not None: c.setor = body.setor
     if body.funcao is not None: c.funcao = body.funcao
-    if body.consentimento_dados is not None:
-        c.consentimento_dados = body.consentimento_dados
-        if body.consentimento_dados and not c.data_consentimento:
-            c.data_consentimento = datetime.utcnow()
     db.commit(); db.refresh(c)
     return c
 
@@ -394,194 +387,6 @@ def inativar_colaborador(cid: str, db: Session = Depends(get_db),
     if entregas_ativas > 0:
         raise HTTPException(400, f"Não é possível inativar: colaborador possui {entregas_ativas} entrega(s) com validade vigente")
     c.ativo = False; db.commit()
-
-
-# ── LGPD / DADOS PESSOAIS ────────────────────────────────────────────────
-@router.get("/privacidade")
-def get_privacidade():
-    """Aviso de privacidade (Art. 9 LGPD)."""
-    return {
-        "controlador": "Transpetro Norte/Nordeste",
-        "cnpj": "00.000.000/0001-00",
-        "finalidade": "Controle de entrega de EPIs e gestão de segurança do trabalho (NR-6)",
-        "dados_coletados": ["nome completo", "matrícula", "setor", "função",
-                            "registro de entregas de EPI", "validade de equipamentos"],
-        "base_legal": "Art. 7º, II (cumprimento de obrigação legal) e Art. 7º, V (execução de contrato de trabalho)",
-        "compartilhamento": "Os dados não são compartilhados com terceiros, exceto por determinação judicial",
-        "direitos_titular": "O colaborador pode solicitar a qualquer momento: acesso, correção, exclusão/anonimização e portabilidade dos dados via GET/PUT/DELETE /api/colaboradores/{id}/dados-pessoais",
-        "retencao": "Os dados serão mantidos pelo período de 5 anos após o término do vínculo, conforme Art. 64 da CLT",
-        "contato": "Administrador do sistema — consulte seu superior imediato",
-    }
-
-
-@router.get("/colaboradores/{cid}/dados-pessoais",
-            response_model=schemas.DadosPessoaisOut)
-def exportar_dados_pessoais(cid: str,
-                             db: Session = Depends(get_db),
-                             current_user=Depends(require_permission("cadastrar_epi"))):
-    """Exporta todos os dados pessoais do colaborador (Art. 18, I e II - LGPD)."""
-    q = db.query(models_db.Colaborador)
-    q = tenant_filter(q, models_db.Colaborador, current_user)
-    c = q.filter(models_db.Colaborador.id == cid).first()
-    if not c: raise HTTPException(404, "Colaborador não encontrado")
-    entregas = db.query(models_db.Entrega).filter(
-        models_db.Entrega.colaborador_id == cid).count()
-    return schemas.DadosPessoaisOut(
-        id=c.id, nome=c.nome, matricula=c.matricula,
-        setor=c.setor, funcao=c.funcao, ativo=c.ativo,
-        consentimento_dados=c.consentimento_dados,
-        data_consentimento=c.data_consentimento,
-        created_at=c.created_at,
-        quant_entregas_realizadas=entregas,
-    )
-
-
-@router.put("/colaboradores/{cid}/dados-pessoais",
-            response_model=schemas.DadosPessoaisOut)
-def corrigir_dados_pessoais(cid: str, body: schemas.DadosPessoaisUpdate,
-                             db: Session = Depends(get_db),
-                             current_user=Depends(require_permission("cadastrar_epi"))):
-    """Corrige dados pessoais do colaborador (Art. 18, III - LGPD)."""
-    q = db.query(models_db.Colaborador)
-    q = tenant_filter(q, models_db.Colaborador, current_user)
-    c = q.filter(models_db.Colaborador.id == cid).first()
-    if not c: raise HTTPException(404, "Colaborador não encontrado")
-    if body.nome is not None: c.nome = body.nome
-    if body.matricula is not None: c.matricula = body.matricula
-    if body.setor is not None: c.setor = body.setor
-    if body.funcao is not None: c.funcao = body.funcao
-    db.commit(); db.refresh(c)
-    entregas = db.query(models_db.Entrega).filter(
-        models_db.Entrega.colaborador_id == cid).count()
-    return schemas.DadosPessoaisOut(
-        id=c.id, nome=c.nome, matricula=c.matricula,
-        setor=c.setor, funcao=c.funcao, ativo=c.ativo,
-        consentimento_dados=c.consentimento_dados,
-        data_consentimento=c.data_consentimento,
-        created_at=c.created_at,
-        quant_entregas_realizadas=entregas,
-    )
-
-
-@router.delete("/colaboradores/{cid}/dados-pessoais", status_code=200)
-def anonimizar_dados_pessoais(cid: str,
-                               db: Session = Depends(get_db),
-                               current_user=Depends(require_permission("cadastrar_epi"))):
-    """Anonimiza dados pessoais do colaborador (Art. 18, IV - LGPD).
-    Mantém registros de entrega para compliance NR-6, mas remove vínculo nominal."""
-    q = db.query(models_db.Colaborador)
-    q = tenant_filter(q, models_db.Colaborador, current_user)
-    c = q.filter(models_db.Colaborador.id == cid).first()
-    if not c: raise HTTPException(404, "Colaborador não encontrado")
-    if c.ativo:
-        raise HTTPException(400, "Inative o colaborador antes de anonimizar os dados")
-    anon_id = f"anon-{cid[:8]}"
-    c.nome = f"Colaborador Anonimizado ({anon_id})"
-    c.matricula = anon_id
-    c.setor = "Anonimizado"
-    c.funcao = "Anonimizado"
-    c.consentimento_dados = False
-    c.data_consentimento = None
-    db.commit()
-    return {"detail": "Dados pessoais anonimizados com sucesso (Art. 18, IV - LGPD)",
-            "novo_identificador": anon_id}
-
-
-# ── PURGE / RETENÇÃO (LGPD Art. 16) ──────────────────────────────────────
-@router.get("/relatorio-retencao")
-def relatorio_retencao(db: Session = Depends(get_db),
-                        current_user=Depends(require_permission("editar_config"))):
-    """Relatório de retenção de dados (Art. 16 LGPD)."""
-    hoje = date.today()
-    config = _get_config_dict(db, current_user.tenant_id)
-    retencao_dias = int(config.get("retencao_dias", "1825"))
-    data_limite = hoje - timedelta(days=retencao_dias)
-
-    q = db.query(models_db.Colaborador)
-    q = tenant_filter(q, models_db.Colaborador, current_user)
-    total_colabs = q.count()
-    colabs_inativos = q.filter(models_db.Colaborador.ativo == False).count()
-    colabs_expirados = q.filter(
-        models_db.Colaborador.ativo == False,
-        models_db.Colaborador.created_at < data_limite,
-    ).count()
-
-    q_ent = db.query(models_db.Entrega)
-    entregas_total = q_ent.count()
-    entregas_expiradas = q_ent.filter(
-        models_db.Entrega.data < data_limite
-    ).count()
-
-    return {
-        "periodo_retencao_dias": retencao_dias,
-        "data_limite": str(data_limite),
-        "colaboradores": {
-            "total": total_colabs,
-            "inativos": colabs_inativos,
-            "expirados_para_purge": colabs_expirados,
-        },
-        "entregas": {
-            "total": entregas_total,
-            "expiradas_para_purge": entregas_expiradas,
-        },
-    }
-
-
-@router.post("/purge")
-def purge_dados(db: Session = Depends(get_db),
-                current_user=Depends(require_permission("editar_config"))):
-    """Purge físico de dados fora do período de retenção (Art. 16 LGPD).
-    Colaboradores inativos sem entregas são deletados fisicamente.
-    Colaboradores inativos com entregas são anonimizados.
-    Entregas expiradas são anonimizadas (removido vínculo nominal)."""
-    hoje = date.today()
-    config = _get_config_dict(db, current_user.tenant_id)
-    retencao_dias = int(config.get("retencao_dias", "1825"))
-    data_limite = hoje - timedelta(days=retencao_dias)
-
-    q = db.query(models_db.Colaborador)
-    q = tenant_filter(q, models_db.Colaborador, current_user)
-    inativos = q.filter(
-        models_db.Colaborador.ativo == False,
-        models_db.Colaborador.created_at < data_limite,
-    ).all()
-
-    purge_colab = 0
-    anonimizados = 0
-    purge_entregas = 0
-
-    for c in inativos:
-        entregas_count = db.query(models_db.Entrega).filter(
-            models_db.Entrega.colaborador_id == c.id
-        ).count()
-        if entregas_count == 0:
-            db.delete(c)
-            purge_colab += 1
-        else:
-            anon_id = f"anon-purge-{c.id[:8]}"
-            c.nome = f"Anonimizado ({anon_id})"
-            c.matricula = anon_id
-            c.setor = "Anonimizado"
-            c.funcao = "Anonimizado"
-            c.consentimento_dados = False
-            c.data_consentimento = None
-            anonimizados += 1
-
-    # Anonimiza entregas expiradas (remove vínculo nominal)
-    entregas_expiradas = db.query(models_db.Entrega).filter(
-        models_db.Entrega.data < data_limite
-    ).all()
-    for e in entregas_expiradas:
-        e.colaborador_id = f"anon-entrega-{e.id[:8]}"
-        e.observacao = e.observacao or ""
-        purge_entregas += 1
-
-    db.commit()
-    return {
-        "colaboradores_purgados": purge_colab,
-        "colaboradores_anonimizados": anonimizados,
-        "entregas_anonimizadas": purge_entregas,
-    }
 
 
 # ── TIPOS DE PROTEÇÃO ────────────────────────────────────────────────────
@@ -827,7 +632,6 @@ def set_config(body: schemas.ConfigUpdate, db: Session = Depends(get_db),
 def _get_config_dict(db: Session, tenant_id: Optional[str]) -> dict:
     defaults = {
         "dias_alerta_ca":   "30",
-        "retencao_dias":    "1825",
         "empresa_nome":     "Minha Empresa Ltda",
         "empresa_cnpj":     "00.000.000/0001-00",
         "empresa_endereco": "",
